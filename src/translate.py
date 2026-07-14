@@ -2,6 +2,7 @@
 
 import json
 import time
+from typing import Any
 from urllib.request import Request, urlopen
 
 from . import config
@@ -23,7 +24,30 @@ def _api_call(url: str, payload: dict, key: str) -> dict:
             raise
 
 
-def translate(ocr_text: str) -> str:
+def _build_system_prompt(gc: dict[str, Any] | None) -> str:
+    """Build a game-aware system prompt from a game config."""
+    parts = ["将以下日文翻译成简体中文。只输出译文，不要解释。"]
+
+    if gc:
+        gloss = gc.get("glossary", {})
+        if isinstance(gloss, dict) and gloss:
+            terms = "\n".join(f"  {k} → {v}" for k, v in gloss.items())
+            parts.append(f"固定术语（必须使用）：\n{terms}")
+
+        sig = gc.get("signature_phrases", {})
+        if isinstance(sig, dict) and sig:
+            phrases = "\n".join(f"  {k} → {v}" for k, v in sig.items())
+            parts.append(f"标志性台词（最高优先级，逐字使用）：\n{phrases}")
+
+        tones = gc.get("character_tones", {})
+        if isinstance(tones, dict) and tones:
+            rules = "\n".join(f"  {k}：{v}" for k, v in tones.items())
+            parts.append(f"角色语气（识别到说话人时应用）：\n{rules}")
+
+    return "\n\n".join(parts)
+
+
+def translate(ocr_text: str, game_config: dict[str, Any] | None = None) -> str:
     """Japanese → Chinese.  Uses TRANSLATE_API_KEY if set, otherwise
     falls back to the free Hunyuan-MT-7B on SiliconFlow."""
     if config.TRANSLATE_API_KEY:
@@ -35,11 +59,12 @@ def translate(ocr_text: str) -> str:
         url = f"{config.VISION_BASE_URL.rstrip('/')}/chat/completions"
         key = config.VISION_API_KEY
 
-    print(f"[MT] model={model} key={'***' if key else '(free)'}", flush=True)
+    sys_prompt = _build_system_prompt(game_config)
+    print(f"[MT] model={model} key={'***' if key else '(free)'} game={bool(game_config)}", flush=True)
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "将以下日文翻译成简体中文。只输出译文，不要解释。"},
+            {"role": "system", "content": sys_prompt},
             {"role": "user", "content": ocr_text},
         ],
         "max_tokens": 512,

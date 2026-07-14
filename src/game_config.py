@@ -7,6 +7,7 @@ from typing import Any
 from . import config
 
 _config_cache: dict[str, Any] = {"stamp": None, "configs": []}
+current_game_id: str = ""  # set via the web UI
 
 
 # ── Small YAML Loader Fallback ─────────────────────────────────
