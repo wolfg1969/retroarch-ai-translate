@@ -1,6 +1,8 @@
 .git
 .agents
 .codex
+.claude
+.vscode
 __pycache__/
 *.py[cod]
 .DS_Store

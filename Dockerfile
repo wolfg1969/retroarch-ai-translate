@@ -26,7 +26,7 @@ COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r /app/requirements.txt
 
-COPY src/retroarch_translate.py /app/src/retroarch_translate.py
+COPY src/ /app/src/
 COPY templates/game_config.yaml /app/game_config.yaml
 
 EXPOSE 4404
@@ -34,4 +34,4 @@ EXPOSE 4404
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:4404/', timeout=3).read()"
 
-CMD ["python", "/app/src/retroarch_translate.py"]
+CMD ["python", "-m", "src.retroarch_translate"]

@@ -34,6 +34,8 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+.claude/
+.codex/
 
 screenshots/
 debug/
