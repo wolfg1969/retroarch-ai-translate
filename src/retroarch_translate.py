@@ -733,15 +733,15 @@ class TranslationHandler(BaseHTTPRequestHandler):
                 except Exception as exc:
                     print(f"[Image render failed] {exc}", flush=True)
 
-            if "text" not in output_modes:
+            if "text" not in output_modes and "image" not in output_modes:
                 actual_modes = ", ".join(sorted(output_modes)) if output_modes else "default"
                 print(
                     f"[MODE WARNING] RetroArch output mode is '{actual_modes}', "
-                    f"but this service returns text only. "
-                    f"Translation IS in the response (text field) but RetroArch "
+                    f"but this service returns text + image only. "
+                    f"Translation IS in the response but RetroArch "
                     f"will ignore it in the current mode. "
-                    f"Fix: Settings → AI Service → AI Service Mode → Narrator (mode 2), "
-                    f"or add 'output=text' to the AI Service URL.",
+                    f"Fix: Settings → AI Service → AI Service Mode → Image (mode 0), "
+                    f"or add 'output=image,png' to the AI Service URL.",
                     flush=True,
                 )
 
