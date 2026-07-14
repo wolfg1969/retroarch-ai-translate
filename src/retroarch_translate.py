@@ -52,13 +52,16 @@ GAME_CONFIG_PATH = Path(os.path.expanduser(os.environ.get(
     "GAME_CONFIG_PATH",
     str(DEFAULT_GAME_CONFIG_PATH),
 )))
-VISION_PROVIDER = os.environ.get("VISION_PROVIDER", "")  # "siliconflow", "siliconflow-free", or "" (local OCR)
+# ── Vision / OCR step ──
 VISION_API_KEY = os.environ.get("VISION_API_KEY", "")
-VISION_MODEL = os.environ.get("VISION_MODEL", "Qwen/Qwen3-VL-8B-Instruct")
 VISION_BASE_URL = os.environ.get("VISION_BASE_URL", "https://api.siliconflow.cn/v1")
-# Free-tier models on SiliconFlow
 VISION_OCR_MODEL = os.environ.get("VISION_OCR_MODEL", "PaddlePaddle/PaddleOCR-VL-1.5")
-VISION_MT_MODEL = os.environ.get("VISION_MT_MODEL", "tencent/Hunyuan-MT-7B")
+
+# ── Translate / MT step ──
+TRANSLATE_API_KEY = os.environ.get("TRANSLATE_API_KEY", "")
+TRANSLATE_BASE_URL = os.environ.get("TRANSLATE_BASE_URL", "https://api.siliconflow.cn/v1")
+TRANSLATE_MODEL = os.environ.get("TRANSLATE_MODEL", "deepseek-ai/DeepSeek-V4-Flash")
+TRANSLATE_MT_FREE_MODEL = os.environ.get("TRANSLATE_MT_FREE_MODEL", "tencent/Hunyuan-MT-7B")
 
 TEXT_POSITION_BOTTOM = 1
 
@@ -76,23 +79,16 @@ def _cache_key(png_bytes: bytes) -> str:
     the same dialog text produces the same cache key regardless of
     cursor animation state.
     """
-    try:
-        import cv2
-        import numpy as np
-        encoded = np.frombuffer(png_bytes, dtype=np.uint8)
-        img = cv2.imdecode(encoded, cv2.IMREAD_GRAYSCALE)
-        if img is not None:
-            h, w = img.shape[:2]
-            # Trim: top 5% (status bar), bottom 10% (blinking cursor)
-            y0 = int(h * 0.05)
-            y1 = int(h * 0.90)
-            crop = img[y0:y1, :]
-            # Small thumbnail of the text region
-            thumb = cv2.resize(crop, (32, 24), interpolation=cv2.INTER_AREA)
-            return hashlib.sha256(thumb.tobytes()).hexdigest()
-    except ModuleNotFoundError:
-        pass
-    return hashlib.sha256(png_bytes).hexdigest()
+    from io import BytesIO
+    img = Image.open(BytesIO(png_bytes)).convert("L")
+    w, h = img.size
+    # Trim: top 5% (status bar), bottom 10% (blinking cursor)
+    y0 = int(h * 0.05)
+    y1 = int(h * 0.90)
+    crop = img.crop((0, y0, w, y1))
+    # Small thumbnail of the text region
+    thumb = crop.resize((32, 24), Image.Resampling.LANCZOS)
+    return hashlib.sha256(thumb.tobytes()).hexdigest()
 
 
 def _cache_get(png_bytes: bytes) -> str | None:
@@ -290,67 +286,6 @@ def load_game_config(game_id: str | None) -> dict[str, Any] | None:
     return None
 
 
-# ── Vision API Translation (SiliconFlow) ─────────────────────────
-
-_VISION_SYSTEM_PROMPT = """你是 RetroArch GBA 日文游戏的实时翻译器。
-
-这张截图来自 GBA 游戏（240×160 像素），请仔细识别画面中的日文像素文字，将其翻译成简体中文。
-
-规则：
-1. 只输出简体中文译文，一行一句，不加解释或标记。
-2. 只翻译游戏对话和 UI 文字，不扩写或补剧情。
-3. 保留原文的省略号、感叹号、问号和停顿节奏。
-4. 截图中的角色名字（如成步堂/御剑/真宵/审判长）直接使用中文名，根据角色语气调整翻译风格。
-5. 像素字体可能有残缺笔画，请根据上下文推断正确文字。"""
-
-
-def translate_via_vision(png_b64: str) -> str:
-    """Send screenshot to SiliconFlow DeepSeek-OCR for end-to-end translation.
-
-    One API call replaces the entire local-OCR + translate pipeline.
-    """
-    if not VISION_API_KEY:
-        raise RuntimeError("VISION_API_KEY is not set")
-
-    payload = {
-        "model": VISION_MODEL,
-        "messages": [
-            {"role": "system", "content": _VISION_SYSTEM_PROMPT},
-            {"role": "user", "content": [
-                {"type": "image_url", "image_url": {
-                    "url": f"data:image/png;base64,{png_b64}",
-                }},
-            ]},
-        ],
-        "temperature": 0.3,
-        "max_tokens": 1024,
-        "stream": False,
-    }
-    url = f"{VISION_BASE_URL.rstrip('/')}/chat/completions"
-    print(
-        f"[Vision request] provider=siliconflow model={VISION_MODEL} "
-        f"image_len={len(png_b64)}",
-        flush=True,
-    )
-    req = Request(
-        url,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {VISION_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    with urlopen(req, timeout=REQUEST_TIMEOUT) as response:
-        data = json.loads(response.read())
-    print(
-        "[Vision response] "
-        + json.dumps(data, ensure_ascii=False)[:500],
-        flush=True,
-    )
-    return data["choices"][0]["message"]["content"].strip()
-
-
 def _siliconflow_call(model: str, messages: list[dict], max_tokens: int = 512) -> str:
     """Single SiliconFlow chat-completion call.  Used by the free pipeline."""
     payload = {
@@ -375,14 +310,53 @@ def _siliconflow_call(model: str, messages: list[dict], max_tokens: int = 512) -
     return data["choices"][0]["message"]["content"].strip()
 
 
-def translate_via_free_pipeline(png_b64: str) -> str:
-    """Two-step free pipeline on SiliconFlow:
+def _translate_text(ocr_text: str) -> str:
+    """Text translation step.  Uses TRANSLATE_API_KEY if set, otherwise
+    falls back to the free Hunyuan-MT-7B on SiliconFlow."""
+    if TRANSLATE_API_KEY:
+        model = TRANSLATE_MODEL
+        url = f"{TRANSLATE_BASE_URL.rstrip('/')}/chat/completions"
+        key = TRANSLATE_API_KEY
+    else:
+        model = TRANSLATE_MT_FREE_MODEL
+        url = f"{VISION_BASE_URL.rstrip('/')}/chat/completions"
+        key = VISION_API_KEY
 
-    1. PaddleOCR-VL-1.5  — screenshot → Japanese text  (free)
-    2. Hunyuan-MT-7B      — Japanese → Chinese          (free)
+    print(f"[MT] model={model} key={'***' if key else '(free)'}", flush=True)
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "将以下日文翻译成简体中文。只输出译文，不要解释。"},
+            {"role": "user", "content": ocr_text},
+        ],
+        "max_tokens": 512,
+        "temperature": 0.1,
+        "stream": False,
+    }
+    req = Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urlopen(req, timeout=REQUEST_TIMEOUT) as response:
+        data = json.loads(response.read())
+    translated = data["choices"][0]["message"]["content"].strip()
+    print(f"[MT] → {translated}", flush=True)
+    return translated
+
+
+def translate_via_free_pipeline(png_b64: str) -> str:
+    """Two-step pipeline:
+
+    1. PaddleOCR-VL (free) — screenshot → Japanese text
+    2. Translate — Japanese → Chinese (free or paid, see TRANSLATE_API_KEY)
     """
     # Step 1: OCR
-    print(f"[Free OCR] model={VISION_OCR_MODEL}", flush=True)
+    print(f"[OCR] model={VISION_OCR_MODEL}", flush=True)
     ocr_text = _siliconflow_call(
         model=VISION_OCR_MODEL,
         messages=[{"role": "user", "content": [
@@ -390,19 +364,10 @@ def translate_via_free_pipeline(png_b64: str) -> str:
             {"type": "text", "text": "请识别这张GBA游戏截图中的所有日文文字，只输出文字，不要解释。"},
         ]}],
     )
-    print(f"[Free OCR] → {ocr_text}", flush=True)
+    print(f"[OCR] → {ocr_text}", flush=True)
 
     # Step 2: Translate
-    print(f"[Free MT] model={VISION_MT_MODEL}", flush=True)
-    translated = _siliconflow_call(
-        model=VISION_MT_MODEL,
-        messages=[
-            {"role": "system", "content": "将以下日文翻译成简体中文。只输出译文，不要解释。"},
-            {"role": "user", "content": ocr_text},
-        ],
-    )
-    print(f"[Free MT] → {translated}", flush=True)
-    return translated
+    return _translate_text(ocr_text)
 
 
 # ── RetroArch AI Service Protocol ──────────────────────────────
@@ -535,8 +500,7 @@ class TranslationHandler(BaseHTTPRequestHandler):
         json_response(self, {
             "status": "ok",
             "service": "retroarch-ai-translation",
-            "vision_provider": VISION_PROVIDER or "siliconflow-free",
-            "vision_model": VISION_MODEL,
+            "pipeline": f"{VISION_OCR_MODEL} → {TRANSLATE_MODEL if TRANSLATE_API_KEY else TRANSLATE_MT_FREE_MODEL}",
             "config_path": str(GAME_CONFIG_PATH),
             "config_dir": str(CONFIG_DIR),
             "endpoint": parsed.path or "/",
@@ -576,13 +540,8 @@ class TranslationHandler(BaseHTTPRequestHandler):
             if cached is not None:
                 translated = cached
                 print("[Cache] hit", flush=True)
-            elif VISION_PROVIDER == "siliconflow":
-                # ── Paid vision: screenshot → Qwen3-VL (one call) ──
-                translated = translate_via_vision(png_b64)
-                print(f"[Vision] → {translated}", flush=True)
-                _cache_put(png_bytes, translated)
             else:
-                # ── Free vision (default): PaddleOCR-VL → Hunyuan-MT ──
+                # ── OCR → MT pipeline ──
                 translated = translate_via_free_pipeline(png_b64)
                 _cache_put(png_bytes, translated)
             response: dict[str, Any] = {
@@ -637,11 +596,12 @@ def main() -> int:
     configs = load_all_game_configs()
 
     print(f"RetroArch Translation Service on http://{LISTEN_HOST}:{LISTEN_PORT}")
-    if VISION_PROVIDER == "siliconflow":
-        print(f"  Translation: Vision API — {VISION_MODEL} @ {VISION_BASE_URL}")
-    else:
-        print(f"  Translation: FREE pipeline — {VISION_OCR_MODEL} → {VISION_MT_MODEL}")
-        print(f"  Provider: {VISION_BASE_URL}")
+    mt_model = TRANSLATE_MODEL if TRANSLATE_API_KEY else TRANSLATE_MT_FREE_MODEL
+    mt_label = f"{mt_model} (paid)" if TRANSLATE_API_KEY else f"{mt_model} (free)"
+    print(f"  Pipeline: {VISION_OCR_MODEL} → {mt_label}")
+    print(f"  Vision API: {VISION_BASE_URL}")
+    if TRANSLATE_API_KEY:
+        print(f"  MT API:     {TRANSLATE_BASE_URL}")
     print(f"  Config path: {GAME_CONFIG_PATH}")
     print(f"  User config dir: {CONFIG_DIR}")
     if not CONFIG_DIR.exists():

@@ -3,7 +3,6 @@ services:
     build:
       context: .
     image: retroarch-ai-translation:local
-    platform: ${DOCKER_PLATFORM:-}
     ports:
       - "${HOST_BIND:-0.0.0.0}:${HOST_PORT:-4404}:4404"
     environment:
@@ -11,12 +10,13 @@ services:
       LISTEN_PORT: 4404
       GAME_CONFIG_PATH: /app/game_config.yaml
       GAME_CONFIG_DIR: /config/games
-      VISION_PROVIDER: ${VISION_PROVIDER:-}
       VISION_API_KEY: ${VISION_API_KEY:-}
-      VISION_MODEL: ${VISION_MODEL:-Qwen/Qwen3-VL-8B-Instruct}
       VISION_BASE_URL: ${VISION_BASE_URL:-https://api.siliconflow.cn/v1}
       VISION_OCR_MODEL: ${VISION_OCR_MODEL:-PaddlePaddle/PaddleOCR-VL-1.5}
-      VISION_MT_MODEL: ${VISION_MT_MODEL:-tencent/Hunyuan-MT-7B}
+      TRANSLATE_API_KEY: ${TRANSLATE_API_KEY:-}
+      TRANSLATE_BASE_URL: ${TRANSLATE_BASE_URL:-https://api.siliconflow.cn/v1}
+      TRANSLATE_MODEL: ${TRANSLATE_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
+      TRANSLATE_MT_FREE_MODEL: ${TRANSLATE_MT_FREE_MODEL:-tencent/Hunyuan-MT-7B}
     volumes:
       - ./templates/game_config.yaml:/app/game_config.yaml:ro
       - ./games:/config/games:ro
