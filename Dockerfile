@@ -7,9 +7,7 @@ ENV PYTHONUNBUFFERED=1 \
     LISTEN_HOST=0.0.0.0 \
     LISTEN_PORT=4404 \
     GAME_CONFIG_PATH=/app/game_config.yaml \
-    GAME_CONFIG_DIR=/config/games \
-    PADDLE_HOME=/models/paddle \
-    XDG_CACHE_HOME=/models/cache
+    GAME_CONFIG_DIR=/config/games
 
 WORKDIR /app
 
@@ -20,17 +18,9 @@ RUN set -eux; \
       /etc/apt/sources.list.d/debian.sources; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        libglib2.0-0 \
-        libgl1 \
-        libgomp1 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        fonts-wqy-zenhei \
-        tesseract-ocr \
-        tesseract-ocr-jpn; \
+        fonts-wqy-zenhei; \
     rm -rf /var/lib/apt/lists/*; \
-    mkdir -p /config/games /models
+    mkdir -p /config/games
 
 COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --upgrade pip \
