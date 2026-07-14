@@ -25,10 +25,13 @@ import re
 import sys
 import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
+
+from PIL import Image, ImageDraw, ImageFont
 
 
 # ── Configuration ──────────────────────────────────────────────
@@ -554,7 +557,84 @@ def language_name(code: str | None) -> str | None:
     return mapping.get(str(code), code)
 
 
+# ── Image Overlay Rendering ─────────────────────────────────────
+
+_CJK_FONT_PATH = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
+_FONT_CACHE: dict[int, ImageFont.FreeTypeFont] = {}
+
+
+def _get_font(size: int) -> ImageFont.FreeTypeFont:
+    if size not in _FONT_CACHE:
+        try:
+            _FONT_CACHE[size] = ImageFont.truetype(_CJK_FONT_PATH, size)
+        except (OSError, IOError):
+            _FONT_CACHE[size] = ImageFont.load_default()
+    return _FONT_CACHE[size]
+
+
+def render_text_overlay(
+    text: str,
+    source_png_bytes: bytes,
+    viewport: tuple[int, int] | None = None,
+    text_position: int = 1,
+) -> bytes:
+    """Render translated Chinese text onto a transparent PNG overlay.
+
+    Returns PNG bytes for the RetroArch AI Service ``image`` field.
+    """
+    if viewport and len(viewport) >= 2:
+        width, height = int(viewport[0]), int(viewport[1])
+    else:
+        src = Image.open(BytesIO(source_png_bytes))
+        width, height = src.size
+
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    font_size = max(10, min(16, height // 12))
+    font = _get_font(font_size)
+
+    chars_per_line = max(6, width // (font_size + 2))
+    lines: list[str] = []
+    for paragraph in text.split("\n"):
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        for i in range(0, len(paragraph), chars_per_line):
+            lines.append(paragraph[i:i + chars_per_line])
+
+    max_lines = height // (font_size + 6)
+    lines = lines[-max_lines:]
+
+    line_height = font_size + 4
+    text_area_height = len(lines) * line_height + 10
+
+    padding_y = 6
+    if text_position == 1:  # bottom
+        bg_y0 = height - text_area_height - padding_y
+        bg_y1 = height
+    else:  # top
+        bg_y0 = 0
+        bg_y1 = text_area_height + padding_y
+
+    draw.rectangle([(0, bg_y0), (width, bg_y1)], fill=(0, 0, 0, 180))
+
+    text_y = bg_y0 + 5
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_x = max(2, (width - text_w) // 2)
+        draw.text((text_x + 1, text_y + 1), line, font=font, fill=(0, 0, 0, 200))
+        draw.text((text_x, text_y), line, font=font, fill=(255, 255, 255, 255))
+        text_y += line_height
+
+    buf = BytesIO()
+    overlay.save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def json_response(handler: BaseHTTPRequestHandler, data: dict[str, Any]) -> None:
+    print(f"[Response] {json.dumps(data, ensure_ascii=False)}", flush=True)
     body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     handler.send_response(200)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
@@ -583,7 +663,9 @@ class TranslationHandler(BaseHTTPRequestHandler):
         try:
             parsed = urlparse(self.path)
             params = parse_qs(parsed.query)
-            output_modes = parse_output_modes(params.get("output", [None])[0])
+            all_output_vals = params.get("output", [])
+            combined_raw = ",".join(v for v in all_output_vals if v)
+            output_modes = parse_output_modes(combined_raw if combined_raw else None)
             source_lang = language_name(params.get("source_lang", [None])[0])
             target_lang = language_name(params.get("target_lang", [None])[0]) or "zh-CN"
             scene = params.get("scene", [None])[0]
@@ -636,18 +718,31 @@ class TranslationHandler(BaseHTTPRequestHandler):
                 "text_position": TEXT_POSITION_BOTTOM,
             }
 
-            # This service is a text translator. For sound/image AI modes we
-            # still return text so narrator/text configurations work, and add
-            # a clear hint instead of fabricating audio or an overlay image.
-            if output_modes == {"sound"}:
-                response["error"] = (
-                    "This service returns translated text only. "
-                    "Set RetroArch AI Service mode to narrator/text."
-                )
-            elif "image" in output_modes and "text" not in output_modes:
-                response["error"] = (
-                    "This service returns translated text only. "
-                    "Use output=text or narrator/text AI Service mode."
+            # Image mode: render text onto transparent PNG for on-screen overlay
+            if "image" in output_modes:
+                vp = body.get("viewport")
+                viewport = (int(vp[0]), int(vp[1])) if vp and len(vp) >= 2 else None
+                try:
+                    overlay_bytes = render_text_overlay(
+                        text=translated,
+                        source_png_bytes=png_bytes,
+                        viewport=viewport,
+                        text_position=TEXT_POSITION_BOTTOM,
+                    )
+                    response["image"] = base64.b64encode(overlay_bytes).decode("ascii")
+                except Exception as exc:
+                    print(f"[Image render failed] {exc}", flush=True)
+
+            if "text" not in output_modes:
+                actual_modes = ", ".join(sorted(output_modes)) if output_modes else "default"
+                print(
+                    f"[MODE WARNING] RetroArch output mode is '{actual_modes}', "
+                    f"but this service returns text only. "
+                    f"Translation IS in the response (text field) but RetroArch "
+                    f"will ignore it in the current mode. "
+                    f"Fix: Settings → AI Service → AI Service Mode → Narrator (mode 2), "
+                    f"or add 'output=text' to the AI Service URL.",
+                    flush=True,
                 )
 
             json_response(self, response)
@@ -680,7 +775,13 @@ def main() -> int:
     print(f"  Loaded game configs: {len(configs)}")
     if not API_KEY:
         print("  Warning: DEEPSEEK_API_KEY is not set; translation calls will return an error.")
-    print("  RetroArch URL example: http://127.0.0.1:4404/?output=text&game=gyakuten&scene=courtroom")
+    print("  ─────────────────────────────────────────────────────────────")
+    print("  IMPORTANT: This is a TEXT-ONLY translation service.")
+    print("  In RetroArch, go to Settings → AI Service and set:")
+    print("    AI Service Mode = Image (mode 0)")
+    print("  Otherwise, translated text will NOT display in-game.")
+    print("  URL example: http://127.0.0.1:4404/?game=gyakuten&scene=courtroom")
+    print("  ─────────────────────────────────────────────────────────────")
     print("  Press Ctrl+C to stop")
     print()
 

@@ -201,7 +201,7 @@ export DEEPSEEK_API_KEY=sk-...
 python3 retroarch_translate.py
 ```
 
-Then configure RetroArch: Settings → AI Service → URL = `http://localhost:4404`, bind a hotkey, done.
+Then configure RetroArch: Settings → AI Service → AI Service Mode = Image (mode 0), URL = `http://localhost:4404`, bind a hotkey, done.
 
 ### Example: Phoenix Wright scene modes
 

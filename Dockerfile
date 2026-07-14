@@ -25,7 +25,8 @@ RUN set -eux; \
         libgomp1 \
         libsm6 \
         libxext6 \
-        libxrender1; \
+        libxrender1 \
+        fonts-wqy-zenhei; \
     rm -rf /var/lib/apt/lists/*; \
     mkdir -p /config/games /models
 
