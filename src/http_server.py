@@ -117,6 +117,7 @@ class TranslationHandler(BaseHTTPRequestHandler):
             return
 
         # ── AI Service endpoint ──
+        png_bytes = None
         try:
             params = parse_qs(parsed.query)
             all_output_vals = params.get("output", [])
@@ -153,7 +154,12 @@ class TranslationHandler(BaseHTTPRequestHandler):
                 print("[Cache] hit", flush=True)
             else:
                 ocr_text = ocr.extract_text(png_b64)
-                translated = translate.translate(ocr_text, gc)
+                if not ocr_text.strip():
+                    translated = "[未检测到文字]"
+                else:
+                    translated = translate.translate(ocr_text, gc)
+                    if not translated.strip():
+                        translated = "[翻译失败]"
                 cache.put(png_bytes, translated)
 
             response: dict[str, Any] = {
@@ -189,7 +195,16 @@ class TranslationHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             json_response(self, {"error": "Invalid JSON request body"})
         except Exception as exc:
-            json_response(self, {"error": str(exc)[:500]})
+            err_text = f"[服务错误] {exc!s}"[:500]
+            print(f"[ERROR] {exc}", flush=True)
+            resp: dict[str, Any] = {"error": err_text}
+            try:
+                if png_bytes:
+                    ov = overlay.render(err_text, png_bytes)
+                    resp["image"] = base64.b64encode(ov).decode("ascii")
+            except Exception:
+                pass
+            json_response(self, resp)
 
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write(
