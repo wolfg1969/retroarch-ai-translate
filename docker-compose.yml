@@ -17,9 +17,15 @@ services:
       GAME_CONFIG_DIR: /config/games
       PADDLE_HOME: /models/paddle
       XDG_CACHE_HOME: /models/cache
+      OCR_DEBUG_DIR: /debug/ocr
+      VISION_PROVIDER: ${VISION_PROVIDER:-}
+      VISION_API_KEY: ${VISION_API_KEY:-}
+      VISION_MODEL: ${VISION_MODEL:-Qwen/Qwen3-VL-8B-Instruct}
+      VISION_BASE_URL: ${VISION_BASE_URL:-https://api.siliconflow.cn/v1}
     volumes:
       - ./templates/game_config.yaml:/app/game_config.yaml:ro
       - ./games:/config/games:ro
+      - ./debug/ocr:/debug/ocr
       - paddle-model-cache:/models
     restart: unless-stopped
 

@@ -53,6 +53,11 @@ GAME_CONFIG_PATH = Path(os.path.expanduser(os.environ.get(
     "GAME_CONFIG_PATH",
     str(DEFAULT_GAME_CONFIG_PATH),
 )))
+OCR_DEBUG_DIR = os.environ.get("OCR_DEBUG_DIR", "")
+VISION_PROVIDER = os.environ.get("VISION_PROVIDER", "")  # "siliconflow" or "" (local OCR)
+VISION_API_KEY = os.environ.get("VISION_API_KEY", "")
+VISION_MODEL = os.environ.get("VISION_MODEL", "Qwen/Qwen3-VL-8B-Instruct")
+VISION_BASE_URL = os.environ.get("VISION_BASE_URL", "https://api.siliconflow.cn/v1")
 
 TEXT_POSITION_BOTTOM = 1
 SUPPORTED_BUTTONS = {
@@ -244,10 +249,21 @@ def get_ocr() -> Any:
 
     from paddleocr import PaddleOCR  # type: ignore
 
+    det_kwargs = {
+        "det_db_thresh": 0.2,
+        "det_db_box_thresh": 0.35,
+        "det_db_unclip_ratio": 1.8,
+    }
     try:
-        _ocr = PaddleOCR(lang="japan", use_angle_cls=False, show_log=False)
+        _ocr = PaddleOCR(
+            lang="japan", use_angle_cls=False, show_log=False,
+            **det_kwargs,
+        )
     except ValueError:
-        _ocr = PaddleOCR(lang="japan", use_textline_orientation=False)
+        _ocr = PaddleOCR(
+            lang="japan", use_textline_orientation=False,
+            **det_kwargs,
+        )
     except TypeError:
         _ocr = PaddleOCR(lang="japan")
     return _ocr
@@ -274,8 +290,9 @@ def _decode_png_for_ocr(png_bytes: bytes) -> Any:
             raise
 
 
-def _flatten_ocr_text(result: Any) -> list[str]:
-    lines: list[str] = []
+def _flatten_ocr_text(result: Any) -> list[tuple[str, float]]:
+    """Walk PaddleOCR result tree, return (text, confidence) pairs."""
+    pairs: list[tuple[str, float]] = []
 
     def walk(node: Any) -> None:
         if node is None:
@@ -284,22 +301,31 @@ def _flatten_ocr_text(result: Any) -> list[str]:
             for key in ("rec_texts", "texts"):
                 values = node.get(key)
                 if isinstance(values, list):
-                    lines.extend(str(item).strip() for item in values if str(item).strip())
+                    for item in values:
+                        text = str(item).strip()
+                        if text:
+                            pairs.append((text, 1.0))
                     return
             for value in node.values():
                 walk(value)
             return
         if isinstance(node, (list, tuple)):
             if len(node) >= 2 and isinstance(node[1], (list, tuple)) and node[1]:
-                text = node[1][0]
-                if isinstance(text, str) and text.strip():
-                    lines.append(text.strip())
-                    return
+                inner = node[1]
+                text = inner[0] if isinstance(inner[0], str) else str(inner[0]) if inner[0] else ""
+                try:
+                    conf = float(inner[1]) if len(inner) >= 2 and inner[1] is not None else 0.5
+                except (ValueError, TypeError):
+                    conf = 0.5
+                text = text.strip()
+                if text:
+                    pairs.append((text, conf))
+                return
             for item in node:
                 walk(item)
 
     walk(result)
-    return lines
+    return pairs
 
 
 def _recognize_fallback_regions(ocr: Any, image_or_path: Any) -> list[str]:
@@ -342,7 +368,11 @@ def _recognize_fallback_regions(ocr: Any, image_or_path: Any) -> list[str]:
                         and len(candidate) >= 2
                         and isinstance(candidate[0], str)
                     ):
-                        text, score = candidate[0].strip(), float(candidate[1] or 0)
+                        try:
+                            score = float(candidate[1] or 0)
+                        except (ValueError, TypeError):
+                            score = 0.0
+                        text = candidate[0].strip()
                         if text and score > best_score:
                             best_text = text
                             best_score = score
@@ -352,27 +382,224 @@ def _recognize_fallback_regions(ocr: Any, image_or_path: Any) -> list[str]:
     return list(dict.fromkeys(lines))
 
 
+def _save_debug_image(image_or_path: Any, ocr_text: str, tag: str) -> None:
+    """Save OCR input image + result text to OCR_DEBUG_DIR for inspection."""
+    if not OCR_DEBUG_DIR:
+        return
+    import cv2
+    debug_path = Path(OCR_DEBUG_DIR)
+    debug_path.mkdir(parents=True, exist_ok=True)
+    ts = tag.replace(" ", "_").replace("/", "-")
+    # Save image
+    image = cv2.imread(image_or_path) if isinstance(image_or_path, str) else image_or_path
+    if image is not None:
+        img_file = debug_path / f"{ts}.png"
+        cv2.imwrite(str(img_file), image)
+    # Save OCR result
+    txt_file = debug_path / f"{ts}.txt"
+    txt_file.write_text(ocr_text or "(EMPTY)", encoding="utf-8")
+
+
+def _timestamp_tag() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+
+
+def _ocr_image(ocr: Any, image: Any) -> list[str]:
+    """Run PaddleOCR detection+recognition, return quality-filtered text."""
+    if hasattr(ocr, "ocr"):
+        try:
+            result = ocr.ocr(image, cls=False)
+        except TypeError:
+            result = ocr.ocr(image)
+    elif hasattr(ocr, "predict"):
+        result = ocr.predict(image)
+    else:
+        raise RuntimeError("Unsupported PaddleOCR API")
+    pairs = _flatten_ocr_text(result)
+    return [t for t, c in pairs if _is_likely_game_text(t, c)]
+
+
+def _ocr_strips(ocr: Any, bgr: Any, num_strips: int = 10) -> list[str]:
+    """Recognition-only OCR on horizontal strips — bypasses detection.
+
+    GBA pixel fonts (8–12 px) are too small for PaddleOCR's detection
+    model, but the *recognition* model reads them well when given the
+    right image region.  Slicing the screen into horizontal bands and
+    running rec-only on each strip catches text that detection misses.
+    """
+    import cv2
+    h, w = bgr.shape[:2]
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    gray_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+    lines: list[str] = []
+    strip_h = h // num_strips
+    # Use overlapping strips (50 % overlap) so characters spanning a
+    # boundary aren't cut in half.
+    for i in range(num_strips * 2 - 1):
+        y0 = (i * strip_h) // 2
+        y1 = min(h, y0 + strip_h)
+        if y1 - y0 < 8:
+            continue
+        strip = gray_bgr[y0:y1, :, :]
+        try:
+            result = ocr.ocr(strip, det=False, cls=False)
+        except TypeError:
+            result = ocr.ocr(strip, det=False)
+        if result:
+            for item in result[0] if isinstance(result, list) else result:
+                if not (isinstance(item, (list, tuple)) and len(item) >= 2):
+                    continue
+                text = (item[0] if isinstance(item[0], str)
+                        else str(item[0]) if item[0] else "").strip()
+                if not text or len(text) < 2:
+                    continue
+                try:
+                    conf = float(item[1]) if len(item) > 1 and item[1] is not None else 0.0
+                except (ValueError, TypeError):
+                    conf = 0.0
+                if not _is_likely_game_text(text, conf):
+                    continue
+                lines.append(text)
+    return list(dict.fromkeys(lines))
+
+
+def _is_likely_game_text(text: str, confidence: float = 1.0) -> bool:
+    """Filter OCR noise from real GBA game dialog text."""
+    if len(text) < 3:
+        return False
+    if confidence < 0.42:
+        return False
+    return _has_min_japanese(text)
+
+
+def _has_min_japanese(text: str) -> bool:
+    """True when *text* has ≥3 kana/kanji and they make up ≥50 %."""
+    kana_kanji = sum(
+        1 for c in text
+        if re.match(r"[぀-ゟ゠-ヿ一-鿿]", c) and c != "ー"
+    )
+    if kana_kanji < 3:
+        return False
+    if kana_kanji / len(text) < 0.50:
+        return False
+    return True
+
+
 def extract_text(png_bytes: bytes) -> str:
-    """Extract Japanese text from a RetroArch PNG screenshot with PaddleOCR."""
+    """Extract Japanese text from a RetroArch PNG screenshot.
+
+    Uses two complementary strategies for GBA pixel fonts:
+
+    1. **Strip rec-only** (primary) — slices the screen into horizontal
+       bands and runs recognition-only OCR on each.  Bypasses detection
+       entirely, which is the weak link for 8–12 px bitmap fonts.
+    2. **Detection + recognition** (supplement) — standard PaddleOCR
+       pipeline.  Catches text that strip OCR may fragment.
+
+    Results from both passes are merged and deduplicated.
+    """
+    import cv2
     image_or_path = _decode_png_for_ocr(png_bytes)
+    tag = _timestamp_tag()
     try:
         ocr = get_ocr()
-        if hasattr(ocr, "ocr"):
-            try:
-                result = ocr.ocr(image_or_path, cls=False)
-            except TypeError:
-                result = ocr.ocr(image_or_path)
-        elif hasattr(ocr, "predict"):
-            result = ocr.predict(image_or_path)
+        if isinstance(image_or_path, str):
+            bgr = cv2.imread(image_or_path)
         else:
-            raise RuntimeError("Unsupported PaddleOCR API")
-        lines = _flatten_ocr_text(result)
+            bgr = image_or_path
+
+        h, w = bgr.shape[:2]
+        # Pick strip count based on screen height
+        num_strips = max(6, h // 12)
+
+        # ── Pass 1: strip rec-only (primary) ──
+        strip_lines = _ocr_strips(ocr, bgr, num_strips)
+        source = f"strips({len(strip_lines)})"
+
+        # ── Pass 2: standard detection+recognition ──
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        gray_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        det_lines: list[str] = []
+        for attempt, candidate in [("gray", gray_bgr), ("color", bgr)]:
+            det_lines = _ocr_image(ocr, candidate)
+            if det_lines:
+                source += f" + det+rec[{attempt}]({len(det_lines)})"
+                break
+        if not det_lines:
+            source += " + det+rec[miss]"
+
+        # ── Pass 3: Tesseract OCR (complementary engine) ──
+        tess_lines = _ocr_tesseract(bgr)
+        if tess_lines:
+            source += f" + tesseract({len(tess_lines)})"
+        else:
+            source += " + tesseract[miss]"
+
+        # ── Merge, deduplicate & quality-filter ──
+        lines = list(dict.fromkeys(strip_lines + det_lines + tess_lines))
+        before = len(lines)
+        lines = [l for l in lines if _has_min_japanese(l)]
+        if before != len(lines):
+            source += f" (filtered {before - len(lines)} noise)"
+
+        # ── Fallbacks ──
         if not lines:
-            lines = _recognize_fallback_regions(ocr, image_or_path)
-        return "\n".join(dict.fromkeys(lines))
+            lines = _recognize_fallback_regions(ocr, bgr)
+            source = "fallback_regions"
+        if not lines:
+            try:
+                full_result = ocr.ocr(gray_bgr, det=False, cls=False)
+            except TypeError:
+                full_result = ocr.ocr(gray_bgr, det=False)
+            if full_result:
+                full_pairs = _flatten_ocr_text(full_result)
+                lines = [t for t, c in full_pairs if _is_likely_game_text(t, c)]
+                source = "full_image_rec"
+
+        ocr_text = "\n".join(lines)
+        if ocr_text:
+            print(f"[OCR] {len(lines)} line(s) via {source}: {ocr_text}", flush=True)
+        else:
+            print("[OCR] EMPTY — no visible characters detected", flush=True)
+        _save_debug_image(bgr, ocr_text, f"{tag}_ocr")
+        return ocr_text
     finally:
         if isinstance(image_or_path, str):
             Path(image_or_path).unlink(missing_ok=True)
+
+
+# ── Tesseract OCR (complementary engine) ────────────────────────
+
+def _ocr_tesseract(bgr: Any) -> list[str]:
+    """Run Tesseract Japanese OCR as a complementary text source.
+
+    Tesseract's LSTM model reads pixel fonts differently than
+    PaddleOCR — running both in parallel catches text that either
+    engine misses on its own.
+    """
+    try:
+        import pytesseract  # type: ignore
+        import cv2
+    except ModuleNotFoundError:
+        return []
+
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    # Tesseract works better with binarized images for pixel fonts
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    try:
+        text = pytesseract.image_to_string(
+            binary, lang="jpn",
+            config="--psm 6",
+        )
+    except Exception:
+        return []
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    # Apply same quality filter as PaddleOCR results
+    return [l for l in lines if _has_min_japanese(l)]
 
 
 # ── Prompt Assembly ────────────────────────────────────────────
@@ -478,6 +705,67 @@ def _post_deepseek(messages: list[dict[str, str]], max_tokens: int = 1024) -> st
     print(
         "[DeepSeek response] "
         + json.dumps(data, ensure_ascii=False),
+        flush=True,
+    )
+    return data["choices"][0]["message"]["content"].strip()
+
+
+# ── Vision API Translation (SiliconFlow DeepSeek-OCR) ────────────
+
+_VISION_SYSTEM_PROMPT = """你是 RetroArch GBA 日文游戏的实时翻译器。
+
+这张截图来自 GBA 游戏（240×160 像素），请仔细识别画面中的日文像素文字，将其翻译成简体中文。
+
+规则：
+1. 只输出简体中文译文，一行一句，不加解释或标记。
+2. 只翻译游戏对话和 UI 文字，不扩写或补剧情。
+3. 保留原文的省略号、感叹号、问号和停顿节奏。
+4. 截图中的角色名字（如成步堂/御剑/真宵/审判长）直接使用中文名，根据角色语气调整翻译风格。
+5. 像素字体可能有残缺笔画，请根据上下文推断正确文字。"""
+
+
+def translate_via_vision(png_b64: str) -> str:
+    """Send screenshot to SiliconFlow DeepSeek-OCR for end-to-end translation.
+
+    One API call replaces the entire local-OCR + translate pipeline.
+    """
+    if not VISION_API_KEY:
+        raise RuntimeError("VISION_API_KEY is not set")
+
+    payload = {
+        "model": VISION_MODEL,
+        "messages": [
+            {"role": "system", "content": _VISION_SYSTEM_PROMPT},
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {
+                    "url": f"data:image/png;base64,{png_b64}",
+                }},
+            ]},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 1024,
+        "stream": False,
+    }
+    url = f"{VISION_BASE_URL.rstrip('/')}/chat/completions"
+    print(
+        f"[Vision request] provider=siliconflow model={VISION_MODEL} "
+        f"image_len={len(png_b64)}",
+        flush=True,
+    )
+    req = Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {VISION_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urlopen(req, timeout=REQUEST_TIMEOUT) as response:
+        data = json.loads(response.read())
+    print(
+        "[Vision response] "
+        + json.dumps(data, ensure_ascii=False)[:500],
         flush=True,
     )
     return data["choices"][0]["message"]["content"].strip()
@@ -697,22 +985,27 @@ class TranslationHandler(BaseHTTPRequestHandler):
                 json_response(self, {"error": "image must be base64-encoded PNG bytes"})
                 return
 
-            ocr_text = extract_text(png_bytes)
-            if not ocr_text.strip():
-                json_response(self, {
-                    "text": "[未检测到文字]",
-                    "text_position": TEXT_POSITION_BOTTOM,
-                    "auto": "continue",
-                })
-                return
-
-            translated = translate_text(
-                ocr_text=ocr_text,
-                config=config,
-                scene=scene,
-                source_lang=source_lang,
-                target_lang=target_lang,
-            )
+            if VISION_PROVIDER == "siliconflow":
+                # ── Vision mode: screenshot → DeepSeek-OCR (one call) ──
+                translated = translate_via_vision(png_b64)
+                print(f"[Vision] → {translated}", flush=True)
+            else:
+                # ── Local OCR + DeepSeek translation ──
+                ocr_text = extract_text(png_bytes)
+                if not ocr_text.strip():
+                    json_response(self, {
+                        "text": "[未检测到文字]",
+                        "text_position": TEXT_POSITION_BOTTOM,
+                        "auto": "continue",
+                    })
+                    return
+                translated = translate_text(
+                    ocr_text=ocr_text,
+                    config=config,
+                    scene=scene,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                )
             response: dict[str, Any] = {
                 "text": translated,
                 "text_position": TEXT_POSITION_BOTTOM,
@@ -765,9 +1058,12 @@ def main() -> int:
     configs = load_all_game_configs()
 
     print(f"RetroArch Translation Service on http://{LISTEN_HOST}:{LISTEN_PORT}")
-    print(f"  OCR: PaddleOCR Japanese (lazy-loaded on first POST)")
-    print(f"  Provider: {BASE_URL}")
-    print(f"  Model: {MODEL}")
+    if VISION_PROVIDER == "siliconflow":
+        print(f"  Translation: Vision API — {VISION_MODEL} @ {VISION_BASE_URL}")
+    else:
+        print(f"  OCR: PaddleOCR + Tesseract (lazy-loaded on first POST)")
+        print(f"  Provider: {BASE_URL}")
+        print(f"  Model: {MODEL}")
     print(f"  Config path: {GAME_CONFIG_PATH}")
     print(f"  User config dir: {CONFIG_DIR}")
     if not CONFIG_DIR.exists():

@@ -26,7 +26,9 @@ RUN set -eux; \
         libsm6 \
         libxext6 \
         libxrender1 \
-        fonts-wqy-zenhei; \
+        fonts-wqy-zenhei \
+        tesseract-ocr \
+        tesseract-ocr-jpn; \
     rm -rf /var/lib/apt/lists/*; \
     mkdir -p /config/games /models
 

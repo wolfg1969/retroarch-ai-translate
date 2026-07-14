@@ -4,3 +4,4 @@ paddleocr==2.7.3
 PyYAML==6.0.2
 opencv-python-headless==4.10.0.84
 Pillow>=10.0.0
+pytesseract>=0.3.10
