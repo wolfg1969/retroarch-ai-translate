@@ -1,0 +1,27 @@
+services:
+  retroarch-ai-translation:
+    build:
+      context: .
+    image: retroarch-ai-translation:local
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    ports:
+      - "127.0.0.1:${HOST_PORT:-4404}:4404"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      TRANSLATION_MODEL: ${TRANSLATION_MODEL:-deepseek-v4-flash}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-45}
+      LISTEN_HOST: 0.0.0.0
+      LISTEN_PORT: 4404
+      GAME_CONFIG_PATH: /app/game_config.yaml
+      GAME_CONFIG_DIR: /config/games
+      PADDLE_HOME: /models/paddle
+      XDG_CACHE_HOME: /models/cache
+    volumes:
+      - ./templates/game_config.yaml:/app/game_config.yaml:ro
+      - ./games:/config/games:ro
+      - paddle-model-cache:/models
+    restart: unless-stopped
+
+volumes:
+  paddle-model-cache:
