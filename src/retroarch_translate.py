@@ -19,11 +19,13 @@ Environment:
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
 import sys
 import tempfile
+from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 from pathlib import Path
@@ -54,12 +56,65 @@ GAME_CONFIG_PATH = Path(os.path.expanduser(os.environ.get(
     str(DEFAULT_GAME_CONFIG_PATH),
 )))
 OCR_DEBUG_DIR = os.environ.get("OCR_DEBUG_DIR", "")
-VISION_PROVIDER = os.environ.get("VISION_PROVIDER", "")  # "siliconflow" or "" (local OCR)
+VISION_PROVIDER = os.environ.get("VISION_PROVIDER", "")  # "siliconflow", "siliconflow-free", or "" (local OCR)
 VISION_API_KEY = os.environ.get("VISION_API_KEY", "")
 VISION_MODEL = os.environ.get("VISION_MODEL", "Qwen/Qwen3-VL-8B-Instruct")
 VISION_BASE_URL = os.environ.get("VISION_BASE_URL", "https://api.siliconflow.cn/v1")
+# Free-tier models on SiliconFlow
+VISION_OCR_MODEL = os.environ.get("VISION_OCR_MODEL", "PaddlePaddle/PaddleOCR-VL-1.5")
+VISION_MT_MODEL = os.environ.get("VISION_MT_MODEL", "tencent/Hunyuan-MT-7B")
 
 TEXT_POSITION_BOTTOM = 1
+
+# ── Translation cache ───────────────────────────────────────────
+# Same screenshot → same translation.  Common when re-reading dialog.
+
+_CACHE_MAX = int(os.environ.get("TRANSLATION_CACHE_SIZE", "128"))
+_translation_cache: OrderedDict[str, str] = OrderedDict()
+
+
+def _cache_key(png_bytes: bytes) -> str:
+    """Hash the dialog-relevant portion of the screenshot.
+
+    Crops off margins where blinking cursors and status bars live so
+    the same dialog text produces the same cache key regardless of
+    cursor animation state.
+    """
+    try:
+        import cv2
+        import numpy as np
+        encoded = np.frombuffer(png_bytes, dtype=np.uint8)
+        img = cv2.imdecode(encoded, cv2.IMREAD_GRAYSCALE)
+        if img is not None:
+            h, w = img.shape[:2]
+            # Trim: top 5% (status bar), bottom 10% (blinking cursor)
+            y0 = int(h * 0.05)
+            y1 = int(h * 0.90)
+            crop = img[y0:y1, :]
+            # Small thumbnail of the text region
+            thumb = cv2.resize(crop, (32, 24), interpolation=cv2.INTER_AREA)
+            return hashlib.sha256(thumb.tobytes()).hexdigest()
+    except ModuleNotFoundError:
+        pass
+    return hashlib.sha256(png_bytes).hexdigest()
+
+
+def _cache_get(png_bytes: bytes) -> str | None:
+    key = _cache_key(png_bytes)
+    if key in _translation_cache:
+        # Move to end (most recently used)
+        _translation_cache.move_to_end(key)
+        return _translation_cache[key]
+    return None
+
+
+def _cache_put(png_bytes: bytes, translated: str) -> None:
+    key = _cache_key(png_bytes)
+    if key in _translation_cache:
+        _translation_cache.move_to_end(key)
+    _translation_cache[key] = translated
+    while len(_translation_cache) > _CACHE_MAX:
+        _translation_cache.popitem(last=False)
 SUPPORTED_BUTTONS = {
     "a", "b", "x", "y", "select", "start", "up", "down", "left", "right",
     "l", "r", "l2", "r2", "l3", "r3", "pause", "unpause",
@@ -771,6 +826,60 @@ def translate_via_vision(png_b64: str) -> str:
     return data["choices"][0]["message"]["content"].strip()
 
 
+def _siliconflow_call(model: str, messages: list[dict], max_tokens: int = 512) -> str:
+    """Single SiliconFlow chat-completion call.  Used by the free pipeline."""
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0.1,
+        "stream": False,
+    }
+    url = f"{VISION_BASE_URL.rstrip('/')}/chat/completions"
+    req = Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {VISION_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urlopen(req, timeout=REQUEST_TIMEOUT) as response:
+        data = json.loads(response.read())
+    return data["choices"][0]["message"]["content"].strip()
+
+
+def translate_via_free_pipeline(png_b64: str) -> str:
+    """Two-step free pipeline on SiliconFlow:
+
+    1. PaddleOCR-VL-1.5  — screenshot → Japanese text  (free)
+    2. Hunyuan-MT-7B      — Japanese → Chinese          (free)
+    """
+    # Step 1: OCR
+    print(f"[Free OCR] model={VISION_OCR_MODEL}", flush=True)
+    ocr_text = _siliconflow_call(
+        model=VISION_OCR_MODEL,
+        messages=[{"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{png_b64}"}},
+            {"type": "text", "text": "请识别这张GBA游戏截图中的所有日文文字，只输出文字，不要解释。"},
+        ]}],
+    )
+    print(f"[Free OCR] → {ocr_text}", flush=True)
+
+    # Step 2: Translate
+    print(f"[Free MT] model={VISION_MT_MODEL}", flush=True)
+    translated = _siliconflow_call(
+        model=VISION_MT_MODEL,
+        messages=[
+            {"role": "system", "content": "将以下日文翻译成简体中文。只输出译文，不要解释。"},
+            {"role": "user", "content": ocr_text},
+        ],
+    )
+    print(f"[Free MT] → {translated}", flush=True)
+    return translated
+
+
 def translate_text(
     ocr_text: str,
     config: dict[str, Any] | None,
@@ -985,10 +1094,19 @@ class TranslationHandler(BaseHTTPRequestHandler):
                 json_response(self, {"error": "image must be base64-encoded PNG bytes"})
                 return
 
-            if VISION_PROVIDER == "siliconflow":
-                # ── Vision mode: screenshot → DeepSeek-OCR (one call) ──
+            # ── Translation cache ──
+            cached = _cache_get(png_bytes)
+            if cached is not None:
+                translated = cached
+                print("[Cache] hit", flush=True)
+            elif VISION_PROVIDER == "siliconflow-free":
+                # ── Free vision: PaddleOCR-VL → Hunyuan-MT (two calls, both free) ──
+                translated = translate_via_free_pipeline(png_b64)
+            elif VISION_PROVIDER == "siliconflow":
+                # ── Vision mode: screenshot → Qwen3-VL (one call) ──
                 translated = translate_via_vision(png_b64)
                 print(f"[Vision] → {translated}", flush=True)
+                _cache_put(png_bytes, translated)
             else:
                 # ── Local OCR + DeepSeek translation ──
                 ocr_text = extract_text(png_bytes)
@@ -1006,6 +1124,7 @@ class TranslationHandler(BaseHTTPRequestHandler):
                     source_lang=source_lang,
                     target_lang=target_lang,
                 )
+                _cache_put(png_bytes, translated)
             response: dict[str, Any] = {
                 "text": translated,
                 "text_position": TEXT_POSITION_BOTTOM,
@@ -1058,7 +1177,10 @@ def main() -> int:
     configs = load_all_game_configs()
 
     print(f"RetroArch Translation Service on http://{LISTEN_HOST}:{LISTEN_PORT}")
-    if VISION_PROVIDER == "siliconflow":
+    if VISION_PROVIDER == "siliconflow-free":
+        print(f"  Translation: FREE pipeline — {VISION_OCR_MODEL} → {VISION_MT_MODEL}")
+        print(f"  Provider: {VISION_BASE_URL}")
+    elif VISION_PROVIDER == "siliconflow":
         print(f"  Translation: Vision API — {VISION_MODEL} @ {VISION_BASE_URL}")
     else:
         print(f"  OCR: PaddleOCR + Tesseract (lazy-loaded on first POST)")
