@@ -67,17 +67,29 @@ def translate(ocr_text: str, game_config: dict[str, Any] | None = None) -> str:
 
     sys_prompt = _build_system_prompt(game_config)
     print(f"[MT] model={model} key={'***' if key else '(free)'} game={bool(game_config)}", flush=True)
-    payload = {
+    payload: dict = {
         "model": model,
         "messages": [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": ocr_text},
         ],
-        "max_tokens": 512,
+        "max_tokens": 1024,
         "temperature": 0.1,
         "stream": False,
     }
+    if "deepseek" in model.lower():
+        payload["thinking"] = {"type": "disabled"}
     data = _api_call(url, payload, key)
-    translated = data["choices"][0]["message"]["content"].strip()
+    choice = data["choices"][0]
+    translated = (choice.get("message", {}).get("content", "") or "").strip()
+    if not translated:
+        finish = choice.get("finish_reason", "?")
+        print(f"[MT] EMPTY (finish_reason={finish}): {json.dumps(data, ensure_ascii=False)[:300]}", flush=True)
+        # Retry once more if we got empty content (some APIs return empty on content filter)
+        if finish != "stop":
+            time.sleep(1)
+            data = _api_call(url, payload, key)
+            choice = data["choices"][0]
+            translated = (choice.get("message", {}).get("content", "") or "").strip()
     print(f"[MT] → {translated}", flush=True)
     return translated

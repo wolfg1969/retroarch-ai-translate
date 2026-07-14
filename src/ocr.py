@@ -32,13 +32,16 @@ def _api_call(url: str, payload: dict, key: str) -> dict:
 
 def call(model: str, messages: list[dict], max_tokens: int = 512) -> str:
     """Single SiliconFlow chat-completion call."""
-    payload = {
+    payload: dict = {
         "model": model,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": 0.1,
         "stream": False,
     }
+    # Only DeepSeek models support (and need) thinking-disabled
+    if "deepseek" in model.lower():
+        payload["thinking"] = {"type": "disabled"}
     url = f"{config.VISION_BASE_URL.rstrip('/')}/chat/completions"
     data = _api_call(url, payload, config.VISION_API_KEY)
     return data["choices"][0]["message"]["content"].strip()
