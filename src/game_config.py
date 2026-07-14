@@ -7,7 +7,28 @@ from typing import Any
 from . import config
 
 _config_cache: dict[str, Any] = {"stamp": None, "configs": []}
-current_game_id: str = ""  # set via the web UI
+
+_STATE_FILE = config.CONFIG_DIR / ".current_game"
+
+
+def _load_persisted_game_id() -> str:
+    try:
+        return _STATE_FILE.read_text().strip()
+    except (OSError, FileNotFoundError):
+        return ""
+
+
+current_game_id: str = _load_persisted_game_id()
+
+
+def set_current_game(game_id: str) -> None:
+    global current_game_id
+    current_game_id = game_id
+    try:
+        config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        _STATE_FILE.write_text(game_id)
+    except OSError:
+        pass
 
 
 # ── Small YAML Loader Fallback ─────────────────────────────────

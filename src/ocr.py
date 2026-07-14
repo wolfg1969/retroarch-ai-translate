@@ -8,19 +8,26 @@ from . import config
 
 
 def _api_call(url: str, payload: dict, key: str) -> dict:
-    """POST with one retry for transient network errors."""
+    """POST with one retry.  Raises with HTTP status on failure."""
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    last_err = None
     for attempt in range(2):
         try:
             req = Request(url, data=data, headers=headers, method="POST")
             with urlopen(req, timeout=config.REQUEST_TIMEOUT) as response:
                 return json.loads(response.read())
-        except Exception:
+        except Exception as exc:
+            last_err = exc
             if attempt == 0:
                 time.sleep(2)
-                continue
-            raise
+    # Build error with HTTP status if available
+    code_str = ""
+    try:
+        code_str = f"[{last_err.code}] " if hasattr(last_err, "code") else ""
+    except Exception:
+        pass
+    raise RuntimeError(f"{code_str}{last_err}") from last_err
 
 
 def call(model: str, messages: list[dict], max_tokens: int = 512) -> str:

@@ -19,5 +19,5 @@ services:
       TRANSLATE_MT_FREE_MODEL: ${TRANSLATE_MT_FREE_MODEL:-tencent/Hunyuan-MT-7B}
     volumes:
       - ./templates/game_config.yaml:/app/game_config.yaml:ro
-      - ./games:/config/games:ro
+      - ./games:/config/games
     restart: unless-stopped

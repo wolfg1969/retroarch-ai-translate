@@ -111,7 +111,7 @@ class TranslationHandler(BaseHTTPRequestHandler):
         if parsed.path == "/set-game":
             length = int(self.headers.get("Content-Length", "0"))
             body = parse_qs(self.rfile.read(length).decode("utf-8"))
-            game_config.current_game_id = body.get("game_id", [""])[0].strip()
+            game_config.set_current_game(body.get("game_id", [""])[0].strip())
             print(f"[Game] set to '{game_config.current_game_id}'", flush=True)
             html_response(self, _web_ui(game_config.current_game_id) + "<script>location.href='/'</script>")
             return
@@ -160,7 +160,8 @@ class TranslationHandler(BaseHTTPRequestHandler):
                     translated = translate.translate(ocr_text, gc)
                     if not translated.strip():
                         translated = "[翻译失败]"
-                cache.put(png_bytes, translated)
+                    else:
+                        cache.put(png_bytes, translated)
 
             response: dict[str, Any] = {
                 "text": translated,
