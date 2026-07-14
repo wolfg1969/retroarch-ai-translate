@@ -299,6 +299,56 @@ def _flatten_ocr_text(result: Any) -> list[str]:
     return lines
 
 
+def _recognize_fallback_regions(ocr: Any, image_or_path: Any) -> list[str]:
+    """Recognize fixed UI bands when PaddleOCR detection misses pixel fonts."""
+    try:
+        import cv2  # type: ignore
+    except ModuleNotFoundError:
+        return []
+
+    image = cv2.imread(image_or_path) if isinstance(image_or_path, str) else image_or_path
+    if image is None:
+        return []
+
+    height, width = image.shape[:2]
+    regions = [
+        image[0:int(height * 0.24), 0:int(width * 0.70)],          # title/nameplate
+        image[int(height * 0.80):int(height * 0.98), 0:width],     # bottom text line
+    ]
+
+    lines: list[str] = []
+    for region in regions:
+        if region.size == 0:
+            continue
+        variants = [
+            region,
+            cv2.cvtColor(cv2.cvtColor(region, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR),
+        ]
+        best_text = ""
+        best_score = 0.0
+        for variant in variants:
+            try:
+                result = ocr.ocr(variant, det=False, cls=False)
+            except TypeError:
+                result = ocr.ocr(variant, det=False)
+            for item in result or []:
+                candidates = item if isinstance(item, list) else [item]
+                for candidate in candidates:
+                    if (
+                        isinstance(candidate, (list, tuple))
+                        and len(candidate) >= 2
+                        and isinstance(candidate[0], str)
+                    ):
+                        text, score = candidate[0].strip(), float(candidate[1] or 0)
+                        if text and score > best_score:
+                            best_text = text
+                            best_score = score
+        if best_text and best_score >= 0.45:
+            lines.append(best_text)
+
+    return list(dict.fromkeys(lines))
+
+
 def extract_text(png_bytes: bytes) -> str:
     """Extract Japanese text from a RetroArch PNG screenshot with PaddleOCR."""
     image_or_path = _decode_png_for_ocr(png_bytes)
@@ -313,7 +363,10 @@ def extract_text(png_bytes: bytes) -> str:
             result = ocr.predict(image_or_path)
         else:
             raise RuntimeError("Unsupported PaddleOCR API")
-        return "\n".join(dict.fromkeys(_flatten_ocr_text(result)))
+        lines = _flatten_ocr_text(result)
+        if not lines:
+            lines = _recognize_fallback_regions(ocr, image_or_path)
+        return "\n".join(dict.fromkeys(lines))
     finally:
         if isinstance(image_or_path, str):
             Path(image_or_path).unlink(missing_ok=True)
@@ -393,6 +446,21 @@ def _post_deepseek(messages: list[dict[str, str]], max_tokens: int = 1024) -> st
         "stream": False,
         "thinking": {"type": "disabled"},
     }
+    print(
+        "[DeepSeek request] "
+        + json.dumps(
+            {
+                "url": f"{BASE_URL.rstrip('/')}/chat/completions",
+                "headers": {
+                    "Authorization": "Bearer ***",
+                    "Content-Type": "application/json",
+                },
+                "payload": payload,
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
     req = Request(
         f"{BASE_URL.rstrip('/')}/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -404,6 +472,11 @@ def _post_deepseek(messages: list[dict[str, str]], max_tokens: int = 1024) -> st
     )
     with urlopen(req, timeout=REQUEST_TIMEOUT) as response:
         data = json.loads(response.read())
+    print(
+        "[DeepSeek response] "
+        + json.dumps(data, ensure_ascii=False),
+        flush=True,
+    )
     return data["choices"][0]["message"]["content"].strip()
 
 

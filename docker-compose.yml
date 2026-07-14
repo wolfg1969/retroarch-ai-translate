@@ -3,9 +3,9 @@ services:
     build:
       context: .
     image: retroarch-ai-translation:local
-    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    platform: ${DOCKER_PLATFORM:-}
     ports:
-      - "127.0.0.1:${HOST_PORT:-4404}:4404"
+      - "${HOST_BIND:-0.0.0.0}:${HOST_PORT:-4404}:4404"
     environment:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
