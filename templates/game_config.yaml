@@ -1,0 +1,184 @@
+# ============================================================
+# Game Configuration Templates for RetroArch AI Translation
+# Place in: ~/.hermes/retroarch/games/<game_id>.yaml
+# ============================================================
+
+# ── Example 1: Phoenix Wright (逆转裁判) ────────────────────────
+# Save as: ~/.hermes/retroarch/games/gyakuten.yaml
+# RetroArch URL: http://localhost:4404/?game=gyakuten&scene=courtroom
+
+# ── Example 2: Fire Emblem (火焰纹章) ───────────────────────────
+# Save as: ~/.hermes/retroarch/games/fire_emblem.yaml
+# RetroArch URL: http://localhost:4404/?game=fire_emblem
+
+# ── Example 3: Zelda: Minish Cap (塞尔达缩小帽) ─────────────────
+# Save as: ~/.hermes/retroarch/games/zelda_minish.yaml
+# RetroArch URL: http://localhost:4404/?game=zelda_minish
+
+# ============================================================
+
+# ── Phoenix Wright: Ace Attorney (逆转裁判) ─────────────────────
+
+---
+game_id: gyakuten
+display_name: 逆转裁判
+language: jpn
+default_scene: courtroom
+
+# Fixed translations — never let the model rewrite these
+signature_phrases:
+  異議あり！: 反对！
+  待った！: 等等！
+  くらえ！: 接招！
+  矛盾している！: 这里有矛盾！
+  これで終わりだ！: 到此为止！
+  証拠品を提示する: 出示证物
+  尋問: 询问
+  証言: 证言
+
+# Character tone rules — model adjusts Chinese style per speaker
+character_tones:
+  成歩堂: "口语化，语气词多（吧、啊、呢），偶尔吐槽，紧急时句子短促、感叹号收尾，自称'我'"
+  御劍: "冷静克制，句式完整，用词正式，不轻易感叹，多用句号，自称'我'"
+  真宵: "活泼轻快，尾音上扬（呀、哦、嘛），带可爱感，自称'我'，偶尔卖萌"
+  裁判長: "威严但公正，句式正式，用'本庭'自称，使用感叹号时克制"
+
+# Scene modes for context injection
+scene_modes:
+  courtroom: "法庭辩论场景。保持紧迫感和对抗张力，句子短而有力，多用感叹号和反问。成步堂正在质证或反驳。"
+  investigation: "调查取证场景。语气平和，描述性文字完整翻译。成步堂在收集线索。"
+  daily: "日常对话场景。语气轻松自然，可以保留调侃和幽默感。"
+
+glossary:
+  # 法律术语
+  法廷: 法庭
+  裁判長: 审判长
+  検察官: 检察官
+  弁護士: 律师
+  被告人: 被告
+  証人: 证人
+  陪審員: 陪审员
+  証拠: 证据
+  証言: 证言
+  尋問: 询问
+  反対尋問: 反询问
+  異議: 异议
+  判決: 判决
+  有罪: 有罪
+  無罪: 无罪
+  # 角色名
+  成歩堂龍一: 成步堂龙一
+  御劍怜侍: 御剑怜侍
+  綾里真宵: 绫里真宵
+  綾里千尋: 绫里千寻
+  糸鋸圭介: 糸锯圭介
+  狩魔冥: 狩魔冥
+  矢張政志: 矢张政志
+
+# ── Fire Emblem (火焰纹章) ─────────────────────────────────────
+
+---
+game_id: fire_emblem
+display_name: 火焰纹章
+language: jpn
+
+signature_phrases:
+  戦闘開始！: 战斗开始！
+  待機: 待机
+  攻撃: 攻击
+  道具: 道具
+  会話: 对话
+
+character_tones:
+  マルス: "王子语气，正直坚定，句式完整但不冗长"
+  シーダ: "温柔但勇敢，语气柔和但有决心"
+
+glossary:
+  # 职业
+  ロード: 领主
+  ソシアルナイト: 社交骑士
+  アーチャー: 弓箭手
+  魔道士: 魔法师
+  僧侶: 僧侣
+  ペガサスナイト: 天马骑士
+  アーマーナイト: 重甲骑士
+  傭兵: 佣兵
+  盗賊: 盗贼
+  シーフ: 盗贼
+  # 武器
+  鉄の剣: 铁剑
+  鋼の剣: 钢剑
+  銀の剣: 银剑
+  鉄の槍: 铁枪
+  鋼の槍: 钢枪
+  手槍: 手投枪
+  鉄の斧: 铁斧
+  鋼の斧: 钢斧
+  鉄の弓: 铁弓
+  鋼の弓: 钢弓
+  # 魔法
+  ファイアー: 火焰
+  サンダー: 雷电
+  ブリザー: 暴雪
+  ライブ: 治愈
+  リライブ: 大治愈
+  ワープ: 传送
+  # 地形
+  森: 森林
+  山: 山
+  城: 城堡
+  村: 村庄
+  宝箱: 宝箱
+  # 战斗
+  命中: 命中
+  攻撃力: 攻击力
+  守備力: 防御力
+  回避: 回避
+  必殺: 必杀
+  戦闘: 战斗
+  勝利: 胜利
+  敗北: 败北
+
+# ── Zelda: Minish Cap (塞尔达缩小帽) ───────────────────────────
+
+---
+game_id: zelda_minish
+display_name: 塞尔达传说 缩小帽
+language: jpn
+
+signature_phrases:
+  冒険の書: 冒险之书
+  セーブ: 存档
+  ロード: 读档
+  おまえを待っていた: 一直在等你
+
+glossary:
+  # 人物
+  リンク: 林克
+  ゼルダ: 塞尔达
+  グフー: 古夫
+  エゼロ: 艾泽罗
+  ハイリア人: 海拉尔人
+  ピッコル: 皮克鲁
+  # 道具
+  剣: 剑
+  盾: 盾
+  ブーメラン: 回旋镖
+  バクダン: 炸弹
+  弓矢: 弓箭
+  魔法のつぼ: 魔法壶
+  パッチの実: 补丁果实
+  ルピー: 卢比
+  ハート: 心
+  ハートの器: 心之容器
+  # 地点
+  ハイラル城: 海拉尔城
+  チロリアの森: 奇洛利亚森林
+  ゴングル山: 刚古尔山
+  タバンタ秘境: 塔班塔秘境
+  # 通用
+  Aボタン: A键
+  Bボタン: B键
+  妖精: 妖精
+  ダンジョン: 迷宫
+  ボス: Boss
