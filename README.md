@@ -50,6 +50,10 @@ python -m src.retroarch_translate
 
 加载游戏后按下快捷键即可翻译。
 
+## 效果预览
+
+![示例截图](screenshots/example.png)
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
