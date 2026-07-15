@@ -1,18 +1,18 @@
 # ============================================================
 # Game Configuration Templates for RetroArch AI Translation
-# Place in: ~/.hermes/retroarch/games/<game_id>.yaml
+# Place in: ./games/<game_id>.yaml
 # ============================================================
 
 # ── Example 1: Phoenix Wright (逆转裁判) ────────────────────────
-# Save as: ~/.hermes/retroarch/games/gyakuten.yaml
+# Save as: ./games/gyakuten.yaml
 # RetroArch URL: http://localhost:4404/?game=gyakuten&scene=courtroom
 
 # ── Example 2: Fire Emblem (火焰纹章) ───────────────────────────
-# Save as: ~/.hermes/retroarch/games/fire_emblem.yaml
+# Save as: ./games/fire_emblem.yaml
 # RetroArch URL: http://localhost:4404/?game=fire_emblem
 
 # ── Example 3: Zelda: Minish Cap (塞尔达缩小帽) ─────────────────
-# Save as: ~/.hermes/retroarch/games/zelda_minish.yaml
+# Save as: ./games/zelda_minish.yaml
 # RetroArch URL: http://localhost:4404/?game=zelda_minish
 
 # ============================================================
@@ -24,6 +24,12 @@ game_id: gyakuten
 display_name: 逆转裁判
 language: jpn
 default_scene: courtroom
+
+# Overlay display style
+overlay:
+  speaker:
+    left_align: true      # True: 左对齐, False: 居中
+    color: "#ffc800"       # 角色名颜色 (hex: #rgb 或 #rrggbb)
 
 # Fixed translations — never let the model rewrite these
 signature_phrases:

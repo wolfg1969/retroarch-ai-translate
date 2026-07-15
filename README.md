@@ -64,14 +64,14 @@ python -m src.retroarch_translate
 | `LISTEN_HOST` | `127.0.0.1` | 服务监听地址 |
 | `LISTEN_PORT` | `4404` | 服务监听端口 |
 | `REQUEST_TIMEOUT` | `45` | API 请求超时（秒） |
-| `GAME_CONFIG_DIR` | `~/.hermes/retroarch/games` | 游戏配置文件目录 |
+| `GAME_CONFIG_DIR` | `./games` | 游戏配置文件目录 |
 | `TRANSLATION_CACHE_SIZE` | `128` | LRU 缓存上限 |
 | `HOST_BIND` | `0.0.0.0` | Docker 宿主机绑定地址 |
 | `HOST_PORT` | `4404` | Docker 宿主机端口 |
 
 ## 游戏配置
 
-每个游戏可以通过 YAML 配置文件定制翻译行为，支持术语表、角色语气、标志性台词和场景模式。配置文件放在 `~/.hermes/retroarch/games/<game_id>.yaml`，也可以直接写入 [templates/game_config.yaml](templates/game_config.yaml)。
+每个游戏可以通过 YAML 配置文件定制翻译行为，支持术语表、角色语气、标志性台词和场景模式。配置文件放在 `./games/<game_id>.yaml`（项目根目录下的 games 文件夹），也可以直接写入 [templates/game_config.yaml](templates/game_config.yaml)。
 
 内置三个游戏配置示例：**逆转裁判**（`gyakuten`）、**火焰纹章**（`fire_emblem`）、**塞尔达传说 缩小帽**（`zelda_minish`）。
 
@@ -122,10 +122,8 @@ glossary:
 │   └── game_config.py           # YAML 配置加载与解析
 ├── templates/
 │   ├── game_config.yaml         # 预置游戏配置（3 个游戏）
-│   └── retroarch_translate.py   # 旧版参考实现
 ├── references/
 │   ├── protocol-spec.md         # RetroArch AI Service 协议规范
-│   └── deepseek-v4-limits.md    # DeepSeek V4 API 参考
 ├── games/                       # 运行时游戏状态（持久化当前游戏）
 ├── docker-compose.yml
 ├── Dockerfile

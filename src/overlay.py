@@ -9,6 +9,20 @@ from . import config
 _FONT_CACHE: dict[int, ImageFont.FreeTypeFont] = {}
 
 
+def _parse_color(color: str) -> tuple[int, int, int, int]:
+    """Parse hex color (#rgb or #rrggbb) to RGBA tuple."""
+    if not color.startswith("#"):
+        return (255, 200, 0, 255)  # Default yellow
+    hex_str = color.lstrip("#")
+    if len(hex_str) == 3:
+        r, g, b = (int(c, 16) * 17 for c in hex_str)  # #abc -> a*17, b*17, c*17
+    elif len(hex_str) == 6:
+        r, g, b = int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16)
+    else:
+        return (255, 200, 0, 255)
+    return (r, g, b, 255)
+
+
 def _get_font(size: int) -> ImageFont.FreeTypeFont:
     if size not in _FONT_CACHE:
         try:
@@ -23,6 +37,7 @@ def render(
     source_png_bytes: bytes,
     viewport: tuple[int, int] | None = None,
     text_position: int = 1,
+    game_cfg: dict | None = None,
 ) -> bytes:
     """Render translated Chinese text onto a transparent PNG overlay.
 
@@ -41,6 +56,12 @@ def render(
     font = _get_font(font_size)
 
     chars_per_line = max(6, width // (font_size + 2))
+
+    # Load overlay config from game config
+    overlay_cfg = game_cfg.get("overlay", {}) if game_cfg else {}
+    speaker_style = overlay_cfg.get("speaker", {})
+    speaker_left_align = speaker_style.get("left_align", True)
+    speaker_color = speaker_style.get("color", "#ffc800")  # Default yellow
     lines: list[str] = []
     for paragraph in text.split("\n"):
         paragraph = paragraph.strip()
@@ -66,12 +87,22 @@ def render(
     draw.rectangle([(0, bg_y0), (width, bg_y1)], fill=(0, 0, 0, 180))
 
     text_y = bg_y0 + 5
-    for line in lines:
+    for i, line in enumerate(lines):
         bbox = draw.textbbox((0, 0), line, font=font)
         text_w = bbox[2] - bbox[0]
-        text_x = max(2, (width - text_w) // 2)
+
+        # Parse speaker color from hex (#rgb or #rrggbb) or use default
+        if i == 0:
+            # First line (speaker name)
+            text_x = 4 if speaker_left_align else max(2, (width - text_w) // 2)
+            fill_color = _parse_color(speaker_color)
+        else:
+            # Rest (dialogue) centered, white
+            text_x = max(2, (width - text_w) // 2)
+            fill_color = (255, 255, 255, 255)
+
         draw.text((text_x + 1, text_y + 1), line, font=font, fill=(0, 0, 0, 200))
-        draw.text((text_x, text_y), line, font=font, fill=(255, 255, 255, 255))
+        draw.text((text_x, text_y), line, font=font, fill=fill_color)
         text_y += line_height
 
     buf = BytesIO()

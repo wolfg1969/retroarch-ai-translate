@@ -177,6 +177,7 @@ class TranslationHandler(BaseHTTPRequestHandler):
                         source_png_bytes=png_bytes,
                         viewport=viewport,
                         text_position=config.TEXT_POSITION_BOTTOM,
+                        game_cfg=gc,
                     )
                     response["image"] = base64.b64encode(overlay_bytes).decode("ascii")
                 except Exception as exc:

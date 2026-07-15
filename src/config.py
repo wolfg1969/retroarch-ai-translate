@@ -11,7 +11,7 @@ LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "4404"))
 REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "45"))
 CONFIG_DIR = Path(os.path.expanduser(os.environ.get(
     "GAME_CONFIG_DIR",
-    "~/.hermes/retroarch/games",
+    str(BASE_DIR / "games"),
 )))
 GAME_CONFIG_PATH = Path(os.path.expanduser(os.environ.get(
     "GAME_CONFIG_PATH",
