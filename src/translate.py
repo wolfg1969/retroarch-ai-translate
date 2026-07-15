@@ -49,6 +49,10 @@ def _build_system_prompt(gc: dict[str, Any] | None) -> str:
         if isinstance(tones, dict) and tones:
             rules = "\n".join(f"  {k}：{v}" for k, v in tones.items())
             parts.append(f"角色语气（识别到说话人时应用）：\n{rules}")
+            parts.append(
+                "格式要求：若识别到说话人，第一行只输出角色名（如「成步堂」），"
+                "第二行起输出译文；若无法识别说话人，直接输出译文。"
+            )
 
     return "\n\n".join(parts)
 
