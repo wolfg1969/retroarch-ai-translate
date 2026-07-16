@@ -39,6 +39,10 @@ GAME_ALIASES = {
     "ace_attorney": "gyakuten",
     "gyakuten_saiban": "gyakuten",
     "gba__phoenix_wright": "gyakuten",
+    "dangan_ronpa": "danganronpa",
+    "trigger_happy_havoc": "danganronpa",
+    "danganronpa_1": "danganronpa",
+    "psp__danganronpa": "danganronpa",
 }
 
 _CACHE_MAX = int(os.environ.get("TRANSLATION_CACHE_SIZE", "128"))
