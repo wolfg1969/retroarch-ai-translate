@@ -150,6 +150,8 @@ def render(
     speaker_style = overlay_cfg.get("speaker", {})
     speaker_left_align = speaker_style.get("left_align", True)
     speaker_color = speaker_style.get("color", "#ffc800")  # Default yellow
+    dialogue_style = overlay_cfg.get("dialogue", {})
+    dialogue_left_align = dialogue_style.get("left_align", True)  # Default left-aligned
 
     known_speakers = _collect_known_speakers(game_cfg)
     speaker_name, dialogue_paragraphs = _parse_text(text, known_speakers)
@@ -194,7 +196,7 @@ def render(
             text_x = 4 if speaker_left_align else max(2, (width - text_w) // 2)
             fill_color = _parse_color(speaker_color)
         else:
-            text_x = max(2, (width - text_w) // 2)
+            text_x = 4 if dialogue_left_align else max(2, (width - text_w) // 2)
             fill_color = (255, 255, 255, 255)
 
         draw.text((text_x + 1, text_y + 1), line_text, font=font, fill=(0, 0, 0, 200))

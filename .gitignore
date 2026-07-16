@@ -13,7 +13,7 @@ env/
 !.env.example
 
 # Runtime/config generated locally
-games/
+games/.current_game
 logs/
 *.log
 

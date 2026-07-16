@@ -30,6 +30,8 @@ overlay:
   speaker:
     left_align: true      # True: 左对齐, False: 居中
     color: "#ffc800"       # 角色名颜色 (hex: #rgb 或 #rrggbb)
+  dialogue:
+    left_align: true       # True: 左对齐 (默认), False: 居中
 
 # Fixed translations — never let the model rewrite these
 signature_phrases:

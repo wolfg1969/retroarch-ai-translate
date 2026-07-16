@@ -16,6 +16,8 @@ overlay:
   speaker:
     left_align: true
     color: "#ff69b4"
+  dialogue:
+    left_align: true
 
 # ═══════════════════════════════════════════════════════
 # 名台词 / Signature Phrases（逐字固定翻译，最高优先级）
