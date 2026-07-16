@@ -140,18 +140,24 @@ def render(
     overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    font_size = max(10, min(16, height // 12))
-    font = _get_font(font_size)
-
-    chars_per_line = max(6, width // (font_size + 2))
-
     # Load overlay config from game config
     overlay_cfg = game_cfg.get("overlay", {}) if game_cfg else {}
+    font_cfg = overlay_cfg.get("font", {})
     speaker_style = overlay_cfg.get("speaker", {})
     speaker_left_align = speaker_style.get("left_align", True)
     speaker_color = speaker_style.get("color", "#ffc800")  # Default yellow
     dialogue_style = overlay_cfg.get("dialogue", {})
     dialogue_left_align = dialogue_style.get("left_align", True)  # Default left-aligned
+
+    # Font size: explicit config override, or proportional to viewport height
+    cfg_size = font_cfg.get("size", 0)
+    if cfg_size:
+        font_size = max(8, int(cfg_size))
+    else:
+        font_size = max(10, height // 10)
+    font = _get_font(font_size)
+
+    chars_per_line = max(6, width // (font_size + 2))
 
     known_speakers = _collect_known_speakers(game_cfg)
     speaker_name, dialogue_paragraphs = _parse_text(text, known_speakers)

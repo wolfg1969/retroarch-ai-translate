@@ -13,6 +13,8 @@ aliases:
   - danganronpa_1
 
 overlay:
+  font:
+    size: 0   # 0=自动缩放, 或指定固定字号如 18
   speaker:
     left_align: true
     color: "#ff69b4"

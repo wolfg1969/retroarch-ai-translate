@@ -27,8 +27,10 @@ default_scene: courtroom
 
 # Overlay display style
 overlay:
+  font:
+    size: 0                # 字号 (px), 0=自动缩放 (视口高度/10, 最小10px, 自适应各种分辨率)
   speaker:
-    left_align: true      # True: 左对齐, False: 居中
+    left_align: true       # True: 左对齐, False: 居中
     color: "#ffc800"       # 角色名颜色 (hex: #rgb 或 #rrggbb)
   dialogue:
     left_align: true       # True: 左对齐 (默认), False: 居中
