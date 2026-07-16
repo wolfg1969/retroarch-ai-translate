@@ -167,15 +167,22 @@ def render(
         for i in range(0, len(speaker_name), chars_per_line):
             display_items.append((True, speaker_name[i:i + chars_per_line]))
 
-    for paragraph in dialogue_paragraphs:
+    for idx, paragraph in enumerate(dialogue_paragraphs):
         for i in range(0, len(paragraph), chars_per_line):
             display_items.append((False, paragraph[i:i + chars_per_line]))
+        if idx < len(dialogue_paragraphs) - 1:
+            display_items.append((False, ""))  # paragraph break
 
     max_lines = height // (font_size + 6)
     display_items = display_items[-max_lines:]
 
     line_height = font_size + 4
-    text_area_height = len(display_items) * line_height + 10
+    para_gap = max(2, line_height // 3)
+
+    # Count lines & spacers for background height
+    spacers = sum(1 for _, t in display_items if not t)
+    text_lines = len(display_items) - spacers
+    text_area_height = text_lines * line_height + spacers * para_gap + 10
 
     padding_y = 6
     if text_position == 1:  # bottom
@@ -187,8 +194,14 @@ def render(
 
     draw.rectangle([(0, bg_y0), (width, bg_y1)], fill=(0, 0, 0, 180))
 
+    dialogue_indent = max(8, font_size)
+
     text_y = bg_y0 + 5
     for is_speaker, line_text in display_items:
+        if not is_speaker and not line_text:
+            text_y += para_gap  # paragraph break
+            continue
+
         bbox = draw.textbbox((0, 0), line_text, font=font)
         text_w = bbox[2] - bbox[0]
 
@@ -196,7 +209,7 @@ def render(
             text_x = 4 if speaker_left_align else max(2, (width - text_w) // 2)
             fill_color = _parse_color(speaker_color)
         else:
-            text_x = 4 if dialogue_left_align else max(2, (width - text_w) // 2)
+            text_x = dialogue_indent if dialogue_left_align else max(2, (width - text_w) // 2)
             fill_color = (255, 255, 255, 255)
 
         draw.text((text_x + 1, text_y + 1), line_text, font=font, fill=(0, 0, 0, 200))
