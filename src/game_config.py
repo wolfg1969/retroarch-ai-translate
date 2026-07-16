@@ -1,5 +1,6 @@
 """Game config loader — YAML parsing and game config resolution."""
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -8,27 +9,76 @@ from . import config
 
 _config_cache: dict[str, Any] = {"stamp": None, "configs": []}
 
-_STATE_FILE = config.CONFIG_DIR / ".current_game"
+_DEVICE_FILE = config.CONFIG_DIR / ".device_games.json"
 
 
-def _load_persisted_game_id() -> str:
+def _load_device_games() -> dict[str, str]:
+    """Load per-IP game selections from JSON.
+
+    Migrates legacy ``.current_game`` on first access if present.
+    """
     try:
-        return _STATE_FILE.read_text().strip()
+        data = json.loads(_DEVICE_FILE.read_text())
+        if isinstance(data, dict):
+            return data
     except (OSError, FileNotFoundError):
-        return ""
+        pass
+    except json.JSONDecodeError:
+        pass
+
+    # Migrate from legacy .current_game file
+    legacy = config.CONFIG_DIR / ".current_game"
+    try:
+        game_id = legacy.read_text().strip()
+        legacy.unlink()
+        if game_id:
+            data = {"_default": game_id}
+            _save_device_games(data)
+            return data
+    except (OSError, FileNotFoundError):
+        pass
+
+    return {}
 
 
-current_game_id: str = _load_persisted_game_id()
+def _save_device_games(data: dict[str, str]) -> None:
+    """Persist per-IP game selections to JSON."""
+    try:
+        config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        _DEVICE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    except OSError:
+        pass
+
+
+def get_game_for_ip(ip: str) -> str:
+    """Return the game_id configured for *ip*, or empty string."""
+    data = _load_device_games()
+    return data.get(ip, "")
+
+
+def set_game_for_ip(ip: str, game_id: str) -> None:
+    """Set the game_id for a specific IP (empty string clears the mapping)."""
+    data = _load_device_games()
+    if game_id:
+        data[ip] = game_id
+    else:
+        data.pop(ip, None)
+    _save_device_games(data)
 
 
 def set_current_game(game_id: str) -> None:
+    """Set the default game for all devices (backward-compat)."""
     global current_game_id
+    set_game_for_ip("_default", game_id)
     current_game_id = game_id
-    try:
-        config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        _STATE_FILE.write_text(game_id)
-    except OSError:
-        pass
+
+
+def _current_game_id() -> str:
+    """Return the default game id (backward-compat accessor)."""
+    return _load_device_games().get("_default", "")
+
+
+current_game_id: str = _current_game_id()
 
 
 # ── Small YAML Loader Fallback ─────────────────────────────────

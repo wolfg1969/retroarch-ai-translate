@@ -44,7 +44,7 @@ def html_response(handler: BaseHTTPRequestHandler, html: str) -> None:
     handler.wfile.write(body)
 
 
-def _web_ui(current_id: str) -> str:
+def _web_ui(current_id: str, client_ip: str = "") -> str:
     configs = game_config.load_all()
     options = []
     for gc in configs:
@@ -52,6 +52,8 @@ def _web_ui(current_id: str) -> str:
         name = gc.get("display_name", gid)
         sel = " selected" if gid == current_id else ""
         options.append(f'<option value="{gid}"{sel}>{name} ({gid})</option>')
+
+    ip_info = f"设备 IP：{client_ip}" if client_ip else ""
 
     return f"""<!DOCTYPE html>
 <html lang="zh">
@@ -65,22 +67,24 @@ def _web_ui(current_id: str) -> str:
   .status {{ padding: 1em; border-radius: 8px; margin: 1em 0; }}
   .active {{ background: #d4edda; }}
   .none {{ background: #fff3cd; }}
+  .ip-info {{ color: #888; font-size: 0.85em; margin-bottom: 0.5em; }}
 </style>
 </head>
 <body>
 <h1>RetroArch AI Translation</h1>
+<p class="ip-info">{ip_info}</p>
 <div class="status {'active' if current_id else 'none'}">
-  当前游戏：<strong>{current_id or '未设置（不使用术语表）'}</strong>
+  当前游戏：<strong>{current_id or '未设置（自动检测或使用术语表）'}</strong>
 </div>
 <form method="post" action="/set-game">
   <select name="game_id">
-    <option value="">-- 不指定游戏 --</option>
+    <option value="">-- 自动检测 --</option>
     {''.join(options)}
   </select>
   <button type="submit">切换游戏</button>
 </form>
 <p style="color:#888;font-size:0.9em;">
-  服务已加载 {len(configs)} 个游戏配置。切换后翻译会自动使用该游戏的术语表和标志性台词。
+  服务已加载 {len(configs)} 个游戏配置。选择"自动检测"将根据 RetroArch 发送的游戏标识自动匹配配置。
 </p>
 </body>
 </html>"""
@@ -91,8 +95,12 @@ class TranslationHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        client_ip = self.client_address[0]
         if parsed.path == "/" or parsed.path == "/index.html":
-            html_response(self, _web_ui(game_config.current_game_id))
+            current_id = game_config.get_game_for_ip(client_ip)
+            if not current_id:
+                current_id = game_config.get_game_for_ip("_default")
+            html_response(self, _web_ui(current_id, client_ip))
         else:
             mt_model = config.TRANSLATE_MODEL if config.TRANSLATE_API_KEY else config.TRANSLATE_MT_FREE_MODEL
             json_response(self, {
@@ -107,13 +115,17 @@ class TranslationHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
 
-        # ── /set-game — switch current game ──
+        # ── /set-game — switch current game for this device ──
         if parsed.path == "/set-game":
+            client_ip = self.client_address[0]
             length = int(self.headers.get("Content-Length", "0"))
             body = parse_qs(self.rfile.read(length).decode("utf-8"))
-            game_config.set_current_game(body.get("game_id", [""])[0].strip())
-            print(f"[Game] set to '{game_config.current_game_id}'", flush=True)
-            html_response(self, _web_ui(game_config.current_game_id) + "<script>location.href='/'</script>")
+            game_id = body.get("game_id", [""])[0].strip()
+            game_config.set_game_for_ip(client_ip, game_id)
+            if not game_id:
+                game_id = game_config.get_game_for_ip("_default")
+            print(f"[Game] IP {client_ip} set to '{game_id or 'auto-detect'}'", flush=True)
+            html_response(self, _web_ui(game_id or "", client_ip) + "<script>location.href='/'</script>")
             return
 
         # ── AI Service endpoint ──
@@ -146,7 +158,17 @@ class TranslationHandler(BaseHTTPRequestHandler):
                 json_response(self, {"error": "image must be base64-encoded PNG bytes"})
                 return
 
-            gc = game_config.load(game_config.current_game_id)
+            # Resolve game: IP override > label auto-detect > default
+            client_ip = self.client_address[0]
+            label = body.get("label")
+            game_id = (
+                game_config.get_game_for_ip(client_ip)
+                or game_config.resolve(None, label)
+                or game_config.get_game_for_ip("_default")
+            )
+            if game_id:
+                print(f"[Game] resolved '{game_id}' (IP={client_ip}, label={label!r})", flush=True)
+            gc = game_config.load(game_id)
 
             cached = cache.get(png_bytes)
             if cached is not None:
