@@ -33,6 +33,27 @@ def _get_font(size: int) -> ImageFont.FreeTypeFont:
     return _FONT_CACHE[size]
 
 
+def _wrap_text(
+    text: str, max_width: int, font: ImageFont.FreeTypeFont, draw: ImageDraw.Draw,
+) -> list[str]:
+    """Wrap *text* so each line fits within *max_width* pixels."""
+    if not text or max_width <= 0:
+        return []
+    lines: list[str] = []
+    current = ""
+    for char in text:
+        test = current + char
+        if draw.textlength(test, font=font) <= max_width:
+            current = test
+        else:
+            if current:
+                lines.append(current)
+            current = char
+    if current:
+        lines.append(current)
+    return lines
+
+
 def _collect_known_speakers(game_cfg: dict | None) -> set[str]:
     """Gather known character names from game config.
 
@@ -157,8 +178,6 @@ def render(
         font_size = max(10, height // 10)
     font = _get_font(font_size)
 
-    chars_per_line = max(6, width // (font_size + 2))
-
     known_speakers = _collect_known_speakers(game_cfg)
     speaker_name, dialogue_paragraphs = _parse_text(text, known_speakers)
 
@@ -166,16 +185,24 @@ def render(
     print(f"[Overlay] text={text!r}", flush=True)
     print(f"[Overlay] speaker={speaker_name!r} dialogue={dialogue_paragraphs}", flush=True)
 
+    dialogue_indent = max(8, font_size)
+
     # Build display lines — each line is (is_speaker, text)
+    # Wrap by actual pixel width so CJK text never overflows the viewport
     display_items: list[tuple[bool, str]] = []
 
+    right_margin = 8
+    speaker_max_w = width - 8  # speaker always starts at x=4, with right margin
+
     if speaker_name:
-        for i in range(0, len(speaker_name), chars_per_line):
-            display_items.append((True, speaker_name[i:i + chars_per_line]))
+        for line in _wrap_text(speaker_name, speaker_max_w, font, draw):
+            display_items.append((True, line))
+
+    dialogue_max_w = width - dialogue_indent - right_margin
 
     for idx, paragraph in enumerate(dialogue_paragraphs):
-        for i in range(0, len(paragraph), chars_per_line):
-            display_items.append((False, paragraph[i:i + chars_per_line]))
+        for line in _wrap_text(paragraph, dialogue_max_w, font, draw):
+            display_items.append((False, line))
         if idx < len(dialogue_paragraphs) - 1:
             display_items.append((False, ""))  # paragraph break
 
@@ -199,8 +226,6 @@ def render(
         bg_y1 = text_area_height + padding_y
 
     draw.rectangle([(0, bg_y0), (width, bg_y1)], fill=(0, 0, 0, 180))
-
-    dialogue_indent = max(8, font_size)
 
     text_y = bg_y0 + 5
     for is_speaker, line_text in display_items:
