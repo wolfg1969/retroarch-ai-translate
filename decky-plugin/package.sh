@@ -33,17 +33,30 @@ echo "========================================="
 
 # ── Step 1: Sync Python modules ──────────────────────────────
 echo ""
-echo "[1/4] Syncing Python modules from ../src/"
+echo "[1/5] Syncing Python modules from ../src/"
 bash sync-py-modules.sh
 
-# ── Step 2: Build frontend ────────────────────────────────────
+# ── Step 2: Vendor Python dependencies ─────────────────────────
 echo ""
-echo "[2/4] Building frontend (rollup)"
+echo "[2/5] Vendoring Python deps (manylinux_x86_64)"
+# Install Pillow as a pre-built wheel compatible with Steam Deck (x86_64 Linux)
+pip install \
+  --platform manylinux2014_x86_64 \
+  --python-version 311 \
+  --only-binary=:all: \
+  --target="$SCRIPT_DIR/py_modules" \
+  --upgrade \
+  Pillow>=10.0.0 2>&1
+echo "  ✓ Pillow vendored"
+
+# ── Step 3: Build frontend ────────────────────────────────────
+echo ""
+echo "[3/5] Building frontend (rollup)"
 pnpm run build
 
-# ── Step 3: Assemble staging directory ────────────────────────
+# ── Step 4: Assemble staging directory ────────────────────────
 echo ""
-echo "[3/4] Assembling $STAGING"
+echo "[4/5] Assembling $STAGING"
 rm -rf "$STAGING" "$ZIP_FILE"
 mkdir -p "$STAGING"
 
@@ -84,7 +97,7 @@ find "$STAGING" -type f | sed "s|$STAGING/|    |" | sort
 
 # ── Step 4: Create ZIP ───────────────────────────────────────
 echo ""
-echo "[4/4] Creating $ZIP_FILE"
+echo "[5/5] Creating $ZIP_FILE"
 rm -f "$ZIP_FILE"
 cd "$BUILD_DIR"
 zip -r "../$ZIP_FILE" "$PLUGIN_NAME" -x "*.pyc" -x "__pycache__/*" -x ".DS_Store"

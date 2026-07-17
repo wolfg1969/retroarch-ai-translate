@@ -17,5 +17,10 @@ py_modules/retroarch_ai/cache.py
 py_modules/retroarch_ai/retroarch_translate.py
 py_modules/retroarch_ai/server_manager.py
 
+# Vendored Python wheels (installed by package.sh / deploy.sh)
+py_modules/PIL/
+py_modules/pillow*/
+py_modules/Pillow*.dist-info/
+
 # Game config synced from ../templates/game_config.yaml
 defaults/game_config.yaml

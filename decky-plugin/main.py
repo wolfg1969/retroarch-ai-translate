@@ -9,7 +9,6 @@ import json
 import os
 import shutil
 import sys
-from pathlib import Path
 from typing import Any
 
 # The decky module is injected by Decky Loader at runtime — it is NOT
@@ -49,6 +48,7 @@ SETTINGS_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "vision_api_key": "",
+    "vision_base_url": "https://api.siliconflow.cn/v1",
     "translate_api_key": "",
     "translate_base_url": "https://api.siliconflow.cn/v1",
     "translate_model": "deepseek-ai/DeepSeek-V4-Flash",
@@ -107,6 +107,8 @@ def _inject_env(settings: dict[str, Any]) -> None:
     # API keys from settings → env vars
     if settings.get("vision_api_key"):
         os.environ["VISION_API_KEY"] = settings["vision_api_key"]
+    if settings.get("vision_base_url"):
+        os.environ["VISION_BASE_URL"] = settings["vision_base_url"]
     if settings.get("translate_api_key"):
         os.environ["TRANSLATE_API_KEY"] = settings["translate_api_key"]
     if settings.get("translate_base_url"):
@@ -192,22 +194,10 @@ class Plugin:
 
     async def _main(self) -> None:
         """Called when the plugin is loaded."""
-        # 1. Load settings
         settings = _load_settings()
-
-        # 2. Inject env vars (must happen before retroarch_ai imports)
         _inject_env(settings)
-
-        # 3. Ensure CJK font is available
         _ensure_font(settings)
-
-        # 4. Seed default game config if needed
         _ensure_default_config()
-
-        # 5. Import retroarch_ai (after env vars are set)
-        decky.logger.info("Starting RetroArch AI Translation service…")
-
-        # 6. Auto-start the server
         if settings.get("auto_start", True):
             self._start_server()
             decky.logger.info(
@@ -253,6 +243,8 @@ class Plugin:
         """Push settings into os.environ (for already-running service)."""
         if settings.get("vision_api_key"):
             os.environ["VISION_API_KEY"] = settings["vision_api_key"]
+        if settings.get("vision_base_url"):
+            os.environ["VISION_BASE_URL"] = settings["vision_base_url"]
         if settings.get("translate_api_key"):
             os.environ["TRANSLATE_API_KEY"] = settings["translate_api_key"]
         if settings.get("translate_base_url"):
@@ -269,7 +261,7 @@ class Plugin:
     async def get_status(self) -> dict[str, Any]:
         """Return current service status for the frontend."""
         # Import after env vars are set
-        from .py_modules.retroarch_ai import config as ra_config
+        from retroarch_ai import config as ra_config
 
         running = self._manager is not None and self._manager.running
         port = int(os.environ.get("LISTEN_PORT", 4404))

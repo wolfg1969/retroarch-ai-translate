@@ -9,6 +9,7 @@ import {
 
 interface SettingsResponse {
   vision_api_key: string;
+  vision_base_url: string;
   translate_api_key: string;
   translate_base_url: string;
   translate_model: string;
@@ -30,6 +31,7 @@ export default function ApiKeySettings() {
 
   // Local form state
   const [visionKey, setVisionKey] = useState("");
+  const [visionUrl, setVisionUrl] = useState("");
   const [translateKey, setTranslateKey] = useState("");
   const [translateUrl, setTranslateUrl] = useState("");
   const [translateModel, setTranslateModel] = useState("");
@@ -43,6 +45,7 @@ export default function ApiKeySettings() {
         setSettings(s);
         // Only pre-fill fields if the user hasn't typed anything
         if (!visionKey) setVisionKey(s.vision_api_key);
+        if (!visionUrl) setVisionUrl(s.vision_base_url);
         if (!translateKey) setTranslateKey(s.translate_api_key);
         if (!translateUrl) setTranslateUrl(s.translate_base_url);
         if (!translateModel) setTranslateModel(s.translate_model);
@@ -59,6 +62,7 @@ export default function ApiKeySettings() {
     try {
       const result = await saveSettingsRPC({
         vision_api_key: visionKey,
+        vision_base_url: visionUrl,
         translate_api_key: translateKey,
         translate_base_url: translateUrl,
         translate_model: translateModel,
@@ -109,6 +113,18 @@ export default function ApiKeySettings() {
                 value={visionKey}
                 onChange={(e) => setVisionKey((e.target as HTMLInputElement).value)}
                 bIsPassword
+              />
+            </div>
+
+            {/* Vision API URL */}
+            <div style={{ padding: "4px 16px" }}>
+              <TextField
+                label="Vision API URL"
+                description="OpenAI-compatible endpoint for OCR (SiliconFlow, etc.)"
+                value={visionUrl}
+                onChange={(e) =>
+                  setVisionUrl((e.target as HTMLInputElement).value)
+                }
               />
             </div>
 

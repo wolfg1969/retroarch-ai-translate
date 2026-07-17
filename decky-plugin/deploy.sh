@@ -26,13 +26,14 @@ echo " Deploying to $TARGET"
 echo "========================================="
 
 # ── Build ────────────────────────────────────────────────────
-echo "[1/3] Syncing + building"
+echo "[1/4] Syncing + deps + building"
 bash sync-py-modules.sh
+pip install --platform manylinux2014_x86_64 --python-version 311 --only-binary=:all: --target="$SCRIPT_DIR/py_modules" --upgrade Pillow>=10.0.0 2>&1
 pnpm run build
 
 # ── Copy ─────────────────────────────────────────────────────
 echo ""
-echo "[2/3] Copying to $TARGET"
+echo "[2/4] Copying to $TARGET"
 mkdir -p "$TARGET"
 
 # Required files
@@ -65,13 +66,13 @@ echo "  ✓ Plugin files copied"
 # ── Restart ──────────────────────────────────────────────────
 if $RESTART; then
     echo ""
-    echo "[3/3] Restarting plugin_loader"
+    echo "[3/4] Restarting plugin_loader"
     sudo systemctl restart plugin_loader
     echo "  ✓ Decky plugin loader restarted"
     echo ""
     echo "Check QAM menu → AI Translation"
 else
     echo ""
-    echo "(skipped restart — use --no-restart flag was set)"
+    echo "(skipped restart — --no-restart flag was set)"
     echo "To apply:  sudo systemctl restart plugin_loader"
 fi
