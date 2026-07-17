@@ -1,0 +1,21 @@
+node_modules/
+dist/
+dist-pkg/
+pnpm-lock.yaml
+*.zip
+py_modules/retroarch_ai/__pycache__/
+assets/wqy-zenhei.ttc
+
+# Python modules synced from ../src/ — canonical source is ../src/*.py
+py_modules/retroarch_ai/config.py
+py_modules/retroarch_ai/game_config.py
+py_modules/retroarch_ai/http_server.py
+py_modules/retroarch_ai/ocr.py
+py_modules/retroarch_ai/translate.py
+py_modules/retroarch_ai/overlay.py
+py_modules/retroarch_ai/cache.py
+py_modules/retroarch_ai/retroarch_translate.py
+py_modules/retroarch_ai/server_manager.py
+
+# Game config synced from ../templates/game_config.yaml
+defaults/game_config.yaml
