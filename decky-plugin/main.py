@@ -1,4 +1,4 @@
-"""Decky Loader plugin backend — manages the RetroArch AI Translation service.
+"""Decky Loader plugin backend — manages the RetroArch AI Translate service.
 
 The Decky plugin runtime injects the ``decky`` module and looks for a class
 named ``Plugin``.  All public methods are exposed as RPC endpoints to the
@@ -194,7 +194,7 @@ def _ensure_default_config() -> None:
 
 
 class Plugin:
-    """Decky Loader plugin backend for RetroArch AI Translation."""
+    """Decky Loader plugin backend for RetroArch AI Translate."""
 
     _manager: Any = None  # ServerManager, set after import
 
@@ -219,7 +219,7 @@ class Plugin:
     async def _unload(self) -> None:
         """Called when the plugin is disabled or Steam exits."""
         self._stop_server()
-        decky.logger.info("RetroArch AI Translation service stopped")
+        decky.logger.info("RetroArch AI Translate service stopped")
 
     async def _uninstall(self) -> None:
         """Called when the plugin is fully removed."""

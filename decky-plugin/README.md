@@ -1,4 +1,4 @@
-# RetroArch AI Translation — Decky Plugin
+# RetroArch AI Translate — Decky Plugin
 
 Real-time translation overlay for RetroArch games, managed from the Steam
 Deck Quick Access Menu.
@@ -22,7 +22,7 @@ Deck Quick Access Menu.
 
 ### From the Decky Plugin Store (coming soon)
 
-1. Open Decky → Store → search "RetroArch AI Translation" → Install
+1. Open Decky → Store → search "RetroArch AI Translate" → Install
 
 ### Manual Install
 

@@ -1,7 +1,7 @@
 {
   "name": "retroarch-ai-translate",
   "version": "0.1.0",
-  "description": "RetroArch AI Translation Service plugin for Decky Loader",
+  "description": "RetroArch AI Translate Service plugin for Decky Loader",
   "type": "module",
   "scripts": {
     "build": "rollup -c",

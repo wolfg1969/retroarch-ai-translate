@@ -97,7 +97,7 @@ def _settings_ui(saved: bool = False) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>API Settings — RetroArch AI Translation</title>
+<title>API Settings — RetroArch AI Translate</title>
 <style>
   body {{ font-family: system-ui, sans-serif; max-width: 520px; margin: 2em auto; padding: 0 1em; }}
   h1 {{ font-size: 1.3em; }}
@@ -142,7 +142,7 @@ def _web_ui(current_id: str, client_ip: str = "") -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RetroArch AI Translation</title>
+<title>RetroArch AI Translate</title>
 <style>
   body {{ font-family: system-ui, sans-serif; max-width: 480px; margin: 2em auto; padding: 0 1em; }}
   select, button {{ font-size: 1.1em; padding: 0.5em; width: 100%; margin: 0.5em 0; }}
@@ -153,7 +153,7 @@ def _web_ui(current_id: str, client_ip: str = "") -> str:
 </style>
 </head>
 <body>
-<h1>RetroArch AI Translation</h1>
+<h1>RetroArch AI Translate</h1>
 <p class="ip-info">{ip_info}</p>
 <div class="status {'active' if current_id else 'none'}">
   当前游戏：<strong>{current_id or '未设置（自动检测或使用术语表）'}</strong>

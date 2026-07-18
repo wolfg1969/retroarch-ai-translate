@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RetroArch AI Translation Service — Vision API pipeline.
+"""RetroArch AI Translate Service — Vision API pipeline.
 
 RetroArch sends a base64 PNG screenshot.  The service calls a vision
 OCR model to recognise Japanese pixel-font text, then a translation
