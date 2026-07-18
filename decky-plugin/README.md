@@ -104,4 +104,4 @@ decky-plugin/
 
 ## License
 
-MIT — see [../LICENSE](../LICENSE)
+GPLv3 — see [../LICENSE](../LICENSE)
