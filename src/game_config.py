@@ -10,6 +10,7 @@ from . import config
 _config_cache: dict[str, Any] = {"stamp": None, "configs": []}
 
 _DEVICE_FILE = config.CONFIG_DIR / ".device_games.json"
+_DEFAULT_KEY = "_default"
 
 
 def _load_device_games() -> dict[str, str]:
@@ -32,7 +33,7 @@ def _load_device_games() -> dict[str, str]:
         game_id = legacy.read_text().strip()
         legacy.unlink()
         if game_id:
-            data = {"_default": game_id}
+            data = {_DEFAULT_KEY: game_id}
             _save_device_games(data)
             return data
     except (OSError, FileNotFoundError):
@@ -51,31 +52,38 @@ def _save_device_games(data: dict[str, str]) -> None:
 
 
 def get_game_for_ip(ip: str) -> str:
-    """Return the game_id configured for *ip*, or empty string."""
+    """Return the game_id configured for *ip*, or empty string.
+
+    In single-device mode all IPs resolve to the ``_default`` key.
+    """
     data = _load_device_games()
+    if config.SINGLE_DEVICE_MODE:
+        return data.get(_DEFAULT_KEY, "")
     return data.get(ip, "")
 
-
 def set_game_for_ip(ip: str, game_id: str) -> None:
-    """Set the game_id for a specific IP (empty string clears the mapping)."""
-    data = _load_device_games()
-    if game_id:
-        data[ip] = game_id
-    else:
-        data.pop(ip, None)
-    _save_device_games(data)
+    """Set the game_id for a specific IP (empty string clears the mapping).
 
+    In single-device mode always writes to the ``_default`` key.
+    """
+    data = _load_device_games()
+    key = _DEFAULT_KEY if config.SINGLE_DEVICE_MODE else ip
+    if game_id:
+        data[key] = game_id
+    else:
+        data.pop(key, None)
+    _save_device_games(data)
 
 def set_current_game(game_id: str) -> None:
     """Set the default game for all devices (backward-compat)."""
     global current_game_id
-    set_game_for_ip("_default", game_id)
+    set_game_for_ip(_DEFAULT_KEY, game_id)
     current_game_id = game_id
 
 
 def _current_game_id() -> str:
     """Return the default game id (backward-compat accessor)."""
-    return _load_device_games().get("_default", "")
+    return _load_device_games().get(_DEFAULT_KEY, "")
 
 
 current_game_id: str = _current_game_id()

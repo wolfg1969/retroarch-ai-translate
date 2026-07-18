@@ -8,6 +8,7 @@ DEFAULT_GAME_CONFIG_PATH = BASE_DIR / "templates" / "game_config.yaml"
 
 LISTEN_HOST = os.environ.get("LISTEN_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "4404"))
+SINGLE_DEVICE_MODE = os.environ.get("SINGLE_DEVICE_MODE", "").lower() in ("1", "true", "yes")
 REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "45"))
 CONFIG_DIR = Path(os.path.expanduser(os.environ.get(
     "GAME_CONFIG_DIR",
@@ -46,4 +47,12 @@ GAME_ALIASES = {
 }
 
 _CACHE_MAX = int(os.environ.get("TRANSLATION_CACHE_SIZE", "128"))
-_CJK_FONT_PATH = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
+SERVICE_SETTINGS_PATH = Path(os.path.expanduser(os.environ.get(
+    "SERVICE_SETTINGS_PATH",
+    str(CONFIG_DIR / "settings.json"),
+)))
+
+_CJK_FONT_PATH = os.environ.get(
+    "CJK_FONT_PATH",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+)

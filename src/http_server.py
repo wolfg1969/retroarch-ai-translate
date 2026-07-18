@@ -2,6 +2,7 @@
 
 import base64
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler
 from typing import Any
@@ -42,6 +43,78 @@ def html_response(handler: BaseHTTPRequestHandler, html: str) -> None:
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
+
+
+SETTINGS_DEFAULTS = {
+    "vision_api_key": "",
+    "vision_base_url": "https://api.siliconflow.cn/v1",
+    "vision_ocr_model": "PaddlePaddle/PaddleOCR-VL-1.5",
+    "translate_api_key": "",
+    "translate_base_url": "https://api.siliconflow.cn/v1",
+    "translate_model": "deepseek-ai/DeepSeek-V4-Flash",
+}
+
+
+def _load_service_settings() -> dict[str, Any]:
+    try:
+        path = config.SERVICE_SETTINGS_PATH
+        if path.exists():
+            data = json.loads(path.read_text())
+            if isinstance(data, dict):
+                return {**SETTINGS_DEFAULTS, **data}
+    except Exception:
+        pass
+    return dict(SETTINGS_DEFAULTS)
+
+
+def _save_service_settings(data: dict[str, Any]) -> None:
+    path = config.SERVICE_SETTINGS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _settings_ui(saved: bool = False) -> str:
+    s = _load_service_settings()
+    msg = '<p style="color:#4caf50;text-align:center">✅ 设置已保存，服务已自动应用</p>' if saved else ""
+
+    def row(label: str, key: str, pw: bool = False) -> str:
+        val = s.get(key, "")
+        t = "password" if pw else "text"
+        return f"""<label style="display:block;margin-top:0.8em;font-weight:600">{label}</label>
+        <input type="{t}" name="{key}" value="{val.replace(chr(34), '&quot;')}" style="width:100%;padding:0.5em;font-size:1em;box-sizing:border-box">"""
+
+    return f"""<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Settings — RetroArch AI Translation</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; max-width: 520px; margin: 2em auto; padding: 0 1em; }}
+  h1 {{ font-size: 1.3em; }}
+  button {{ font-size: 1.1em; padding: 0.6em; width: 100%; margin-top: 1.2em; background: #4caf50; color: #fff; border: none; border-radius: 6px; cursor: pointer; }}
+  a {{ color: #888; }}
+</style>
+</head>
+<body>
+<h1>🔑 API 设置</h1>
+<p style="color:#888;font-size:0.85em">在电脑或手机上打开此页面，粘贴 API Key 更方便</p>
+{msg}
+<form method="post" action="/settings">
+  {row("Vision API Key", "vision_api_key", pw=True)}
+  {row("Vision API URL", "vision_base_url")}
+  {row("Vision OCR Model", "vision_ocr_model")}
+  {row("Translate API Key（可选）", "translate_api_key", pw=True)}
+  {row("Translate API URL", "translate_base_url")}
+  {row("Translate Model", "translate_model")}
+  <button type="submit">💾 保存设置</button>
+</form>
+<p style="text-align:center;margin-top:1.5em"><a href="/">← 返回首页</a></p>
+	<p style="text-align:center;margin-top:1em">
+	  <a href="/settings" style="color:#888">⚙️ API 设置</a>
+	</p>
+</body>
+</html>"""
 
 
 def _web_ui(current_id: str, client_ip: str = "") -> str:
@@ -86,6 +159,9 @@ def _web_ui(current_id: str, client_ip: str = "") -> str:
 <p style="color:#888;font-size:0.9em;">
   服务已加载 {len(configs)} 个游戏配置。选择"自动检测"将根据 RetroArch 发送的游戏标识自动匹配配置。
 </p>
+	<p style="text-align:center;margin-top:1em">
+	  <a href="/settings" style="color:#888">⚙️ API 设置</a>
+	</p>
 </body>
 </html>"""
 
@@ -101,6 +177,8 @@ class TranslationHandler(BaseHTTPRequestHandler):
             if not current_id:
                 current_id = game_config.get_game_for_ip("_default")
             html_response(self, _web_ui(current_id, client_ip))
+        elif parsed.path == "/settings":
+            html_response(self, _settings_ui())
         else:
             mt_model = config.TRANSLATE_MODEL if config.TRANSLATE_API_KEY else config.TRANSLATE_MT_FREE_MODEL
             json_response(self, {
@@ -114,6 +192,32 @@ class TranslationHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+
+        # ── /settings — save API settings ──
+        if parsed.path == "/settings":
+            length = int(self.headers.get("Content-Length", "0"))
+            body = parse_qs(self.rfile.read(length).decode("utf-8"))
+            data = _load_service_settings()
+            for key in SETTINGS_DEFAULTS:
+                val = body.get(key, [""])[0].strip()
+                if val:
+                    data[key] = val
+            _save_service_settings(data)
+            # Apply to os.environ so the running service picks up changes
+            if data.get("vision_api_key"):
+                os.environ["VISION_API_KEY"] = data["vision_api_key"]
+            if data.get("vision_base_url"):
+                os.environ["VISION_BASE_URL"] = data["vision_base_url"]
+            if data.get("vision_ocr_model"):
+                os.environ["VISION_OCR_MODEL"] = data["vision_ocr_model"]
+            if data.get("translate_api_key"):
+                os.environ["TRANSLATE_API_KEY"] = data["translate_api_key"]
+            if data.get("translate_base_url"):
+                os.environ["TRANSLATE_BASE_URL"] = data["translate_base_url"]
+            if data.get("translate_model"):
+                os.environ["TRANSLATE_MODEL"] = data["translate_model"]
+            html_response(self, _settings_ui(saved=True))
+            return
 
         # ── /set-game — switch current game for this device ──
         if parsed.path == "/set-game":

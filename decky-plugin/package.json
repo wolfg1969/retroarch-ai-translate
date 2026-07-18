@@ -1,0 +1,25 @@
+{
+  "name": "retroarch-ai-translation",
+  "version": "0.1.0",
+  "description": "RetroArch AI Translation Service plugin for Decky Loader",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w",
+    "sync": "bash sync-py-modules.sh",
+    "package": "bash package.sh"
+  },
+  "devDependencies": {
+    "@decky/rollup": "^1.0.2",
+    "rollup": "^4.34.8",
+    "@types/react": "^19.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@decky/api": "^1.1.3",
+    "@decky/ui": "^4.12.0",
+    "react-icons": "^5.4.0"
+  }
+}
