@@ -7,7 +7,7 @@ platforms: [linux, macos, windows]
 
 # RetroArch AI Translate Service — GBA + DeepSeek V4
 
-Build a local HTTP service that plugs into RetroArch's AI Service to provide real-time Japanese→Chinese translation for GBA games. Uses local OCR (PaddleOCR or Tesseract) to extract text, then DeepSeek V4 for translation. Does NOT touch the ROM — RetroAchievements work normally.
+Build a local HTTP service that plugs into RetroArch's AI Service to provide real-time translation for GBA games. Uses local OCR (PaddleOCR or Tesseract) to extract text, then DeepSeek V4 for translation. Does NOT touch the ROM — RetroAchievements work normally.
 
 ## Trigger Conditions
 

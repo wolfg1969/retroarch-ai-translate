@@ -1,7 +1,7 @@
 # RetroArch AI Translation — Decky Plugin
 
-Real-time Japanese→Chinese translation overlay for RetroArch games, managed
-from the Steam Deck Quick Access Menu.
+Real-time translation overlay for RetroArch games, managed from the Steam
+Deck Quick Access Menu.
 
 ## Features
 
