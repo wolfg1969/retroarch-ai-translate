@@ -1,8 +1,8 @@
 services:
-  retroarch-ai-translation:
+  retroarch-ai-translate:
     build:
       context: .
-    image: retroarch-ai-translation:local
+    image: retroarch-ai-translate:local
     ports:
       - "${HOST_BIND:-0.0.0.0}:${HOST_PORT:-4404}:4404"
     environment:

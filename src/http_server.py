@@ -192,7 +192,7 @@ class TranslationHandler(BaseHTTPRequestHandler):
             mt_model = config.TRANSLATE_MODEL if config.TRANSLATE_API_KEY else config.TRANSLATE_MT_FREE_MODEL
             json_response(self, {
                 "status": "ok",
-                "service": "retroarch-ai-translation",
+                "service": "retroarch-ai-translate",
                 "current_game": game_config.current_game_id or None,
                 "pipeline": f"{config.VISION_OCR_MODEL} → {mt_model}",
                 "config_path": str(config.GAME_CONFIG_PATH),

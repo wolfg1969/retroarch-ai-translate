@@ -6,6 +6,6 @@
   "publish": {
     "description": "Real-time Japanese→Chinese translation overlay for RetroArch games. Uses AI vision + MT APIs to translate game text without modifying ROMs.",
     "tags": ["retroarch", "translation", "ai", "utility"],
-    "image": "https://raw.githubusercontent.com/wolfg1969/retroarch-ai-translation/main/screenshots/example.png"
+    "image": "https://raw.githubusercontent.com/wolfg1969/retroarch-ai-translate/main/screenshots/example.png"
   }
 }

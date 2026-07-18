@@ -26,8 +26,8 @@ from the Steam Deck Quick Access Menu.
 
 ### Manual Install
 
-1. Download the latest `retroarch-ai-translation.zip` from Releases
-2. Extract to `~/homebrew/plugins/retroarch-ai-translation/`
+1. Download the latest `retroarch-ai-translate.zip` from Releases
+2. Extract to `~/homebrew/plugins/retroarch-ai-translate/`
 3. Restart Decky: `systemctl restart plugin_loader.service`
 4. The plugin appears in QAM under "AI Translation"
 
@@ -66,7 +66,7 @@ Built-in support for:
 - **塞尔达传说 缩小帽** (Zelda: Minish Cap, `zelda_minish`)
 
 Switch games from the QAM dropdown. Configs are loaded from
-`~/homebrew/settings/retroarch-ai-translation/game_config.yaml`.
+`~/homebrew/settings/retroarch-ai-translate/game_config.yaml`.
 
 To add custom games, edit that file with additional YAML documents.
 See the [main project docs](../templates/game_config.yaml) for the config format.

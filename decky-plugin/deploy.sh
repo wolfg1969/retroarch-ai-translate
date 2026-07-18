@@ -12,7 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PLUGIN_NAME="retroarch-ai-translation"
+PLUGIN_NAME="retroarch-ai-translate"
 DECKY_PLUGINS="${DECKY_PLUGINS:-$HOME/homebrew/plugins}"
 TARGET="$DECKY_PLUGINS/$PLUGIN_NAME"
 RESTART=true

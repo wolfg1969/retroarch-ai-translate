@@ -1,5 +1,5 @@
 ---
-name: retroarch-ai-translation
+name: retroarch-ai-translate
 description: Build a local OCR + DeepSeek V4 translation service for RetroArch. Extracts game text with PaddleOCR/Tesseract, translates via DeepSeek V4 text API. Optimized for GBA Japanese games (Phoenix Wright, Fire Emblem, Zelda). Includes game-specific prompt design with glossary, character tone layering, and signature phrase handling.
 version: 2.0.0
 platforms: [linux, macos, windows]

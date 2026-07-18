@@ -6,7 +6,7 @@
 #   bash package.sh           # same, directly
 #
 # Output:
-#   retroarch-ai-translation.zip   ← install via Decky debug mode
+#   retroarch-ai-translate.zip   ← install via Decky debug mode
 #
 # Decky Debug Mode Install:
 #   1. Copy the zip to your Steam Deck
@@ -14,7 +14,7 @@
 #   3. Select the zip, confirm, then restart plugin_loader
 #
 # Or manually extract to:
-#   ~/homebrew/plugins/retroarch-ai-translation/
+#   ~/homebrew/plugins/retroarch-ai-translate/
 #   Then:  systemctl restart plugin_loader.service
 
 set -euo pipefail
@@ -22,7 +22,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PLUGIN_NAME="retroarch-ai-translation"
+PLUGIN_NAME="retroarch-ai-translate"
 BUILD_DIR="dist-pkg"
 STAGING="$BUILD_DIR/$PLUGIN_NAME"
 ZIP_FILE="$PLUGIN_NAME.zip"

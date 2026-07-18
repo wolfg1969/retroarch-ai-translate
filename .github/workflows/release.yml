@@ -77,8 +77,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: retroarch-ai-translation-decky
-          path: decky-plugin/retroarch-ai-translation.zip
+          name: retroarch-ai-translate-decky
+          path: decky-plugin/retroarch-ai-translate.zip
 
   # ── GitHub Release (on tag push only) ───────────────────────────
   release:
@@ -98,7 +98,7 @@ jobs:
         run: |
           mkdir -p release-assets
           cp artifacts/retroarch-ai-translate-docker/retroarch-ai-translate-docker.tar.gz release-assets/
-          cp artifacts/retroarch-ai-translation-decky/retroarch-ai-translation.zip   release-assets/
+          cp artifacts/retroarch-ai-translate-decky/retroarch-ai-translate.zip   release-assets/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

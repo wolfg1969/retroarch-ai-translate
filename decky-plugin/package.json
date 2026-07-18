@@ -1,5 +1,5 @@
 {
-  "name": "retroarch-ai-translation",
+  "name": "retroarch-ai-translate",
   "version": "0.1.0",
   "description": "RetroArch AI Translation Service plugin for Decky Loader",
   "type": "module",

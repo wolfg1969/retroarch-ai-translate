@@ -93,7 +93,7 @@ python -m src.retroarch_translate
 ### 安装
 
 1. 确保 Steam Deck 已安装 [Decky Loader](https://decky.xyz)
-2. 下载 `retroarch-ai-translation.zip`
+2. 下载 `retroarch-ai-translate.zip`
 3. Decky → 设置 → 开发者 → 从 ZIP 安装插件
 4. 重启插件加载器：`sudo systemctl restart plugin_loader`
 
