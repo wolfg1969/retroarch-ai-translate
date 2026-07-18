@@ -49,6 +49,7 @@ SETTINGS_FILE = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
 DEFAULT_SETTINGS: dict[str, Any] = {
     "vision_api_key": "",
     "vision_base_url": "https://api.siliconflow.cn/v1",
+    "vision_ocr_model": "PaddlePaddle/PaddleOCR-VL-1.5",
     "translate_api_key": "",
     "translate_base_url": "https://api.siliconflow.cn/v1",
     "translate_model": "deepseek-ai/DeepSeek-V4-Flash",
@@ -101,6 +102,10 @@ def _inject_env(settings: dict[str, Any]) -> None:
         "GAME_CONFIG_DIR",
         os.path.join(settings_dir, "games"),
     )
+    os.environ.setdefault(
+        "SERVICE_SETTINGS_PATH",
+        os.path.join(settings_dir, "settings.json"),
+    )
     os.environ.setdefault("LISTEN_HOST", "0.0.0.0")
     os.environ.setdefault("LISTEN_PORT", str(settings.get("listen_port", 4404)))
 
@@ -109,6 +114,8 @@ def _inject_env(settings: dict[str, Any]) -> None:
         os.environ["VISION_API_KEY"] = settings["vision_api_key"]
     if settings.get("vision_base_url"):
         os.environ["VISION_BASE_URL"] = settings["vision_base_url"]
+    if settings.get("vision_ocr_model"):
+        os.environ["VISION_OCR_MODEL"] = settings["vision_ocr_model"]
     if settings.get("translate_api_key"):
         os.environ["TRANSLATE_API_KEY"] = settings["translate_api_key"]
     if settings.get("translate_base_url"):
@@ -226,17 +233,33 @@ class Plugin:
     # ═══════════════════════════════════════════════════════════════
 
     def _start_server(self) -> None:
-        if self._manager is not None and self._manager.running:
-            return
-        # Lazy import so env vars are already set
+        # If already running, stop first to ensure clean restart
+        if self._manager is not None:
+            if self._manager.running:
+                return  # already running, nothing to do
+            self._manager = None  # discard stopped instance
+
         from retroarch_ai.server_manager import ServerManager
 
-        self._manager = ServerManager()
-        self._manager.start()
+        try:
+            mgr = ServerManager()
+            mgr.start()
+            self._manager = mgr
+            decky.logger.info("HTTP server started")
+        except Exception as exc:
+            decky.logger.error(f"Failed to start server: {exc}")
+            self._manager = None
+            raise
 
     def _stop_server(self) -> None:
-        if self._manager is not None:
+        if self._manager is None:
+            return
+        try:
             self._manager.stop(timeout=5.0)
+            decky.logger.info("HTTP server stopped")
+        except Exception as exc:
+            decky.logger.error(f"Error stopping server: {exc}")
+        finally:
             self._manager = None
 
     def _apply_env_from_settings(self, settings: dict[str, Any]) -> None:
@@ -259,28 +282,39 @@ class Plugin:
     # ═══════════════════════════════════════════════════════════════
 
     async def get_status(self) -> dict[str, Any]:
-        """Return current service status for the frontend."""
-        # Import after env vars are set
+        """Return current service status for the frontend.
+
+        Reads from ``os.environ`` so web UI settings changes are reflected
+        immediately without restart.
+        """
         from retroarch_ai import config as ra_config
 
         running = self._manager is not None and self._manager.running
         port = int(os.environ.get("LISTEN_PORT", 4404))
+        has_translate_key = bool(
+            os.environ.get("TRANSLATE_API_KEY", ra_config.TRANSLATE_API_KEY)
+        )
 
         return {
             "running": running,
             "port": port,
             "host": os.environ.get("LISTEN_HOST", "0.0.0.0"),
-            "vision_model": ra_config.VISION_OCR_MODEL,
-            "translate_model": (
-                ra_config.TRANSLATE_MODEL
-                if ra_config.TRANSLATE_API_KEY
-                else ra_config.TRANSLATE_MT_FREE_MODEL
+            "vision_model": os.environ.get(
+                "VISION_OCR_MODEL", ra_config.VISION_OCR_MODEL
             ),
-            "has_vision_key": bool(ra_config.VISION_API_KEY),
-            "has_translate_key": bool(ra_config.TRANSLATE_API_KEY),
-            "cjk_font_path": (
-                os.environ.get("CJK_FONT_PATH", "")
-                or ra_config._CJK_FONT_PATH
+            "translate_model": (
+                os.environ.get("TRANSLATE_MODEL", ra_config.TRANSLATE_MODEL)
+                if has_translate_key
+                else os.environ.get(
+                    "TRANSLATE_MT_FREE_MODEL", ra_config.TRANSLATE_MT_FREE_MODEL
+                )
+            ),
+            "has_vision_key": bool(
+                os.environ.get("VISION_API_KEY", ra_config.VISION_API_KEY)
+            ),
+            "has_translate_key": has_translate_key,
+            "cjk_font_path": os.environ.get(
+                "CJK_FONT_PATH", ra_config._CJK_FONT_PATH
             ),
         }
 
@@ -335,7 +369,10 @@ class Plugin:
 
     async def start_service(self) -> dict[str, Any]:
         """Start the HTTP translation server."""
-        self._start_server()
+        try:
+            self._start_server()
+        except Exception as exc:
+            return {"running": False, "error": str(exc)}
         return await self.get_status()
 
     async def stop_service(self) -> dict[str, Any]:

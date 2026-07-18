@@ -28,7 +28,7 @@ echo "========================================="
 # ── Build ────────────────────────────────────────────────────
 echo "[1/4] Syncing + deps + building"
 bash sync-py-modules.sh
-pip install --platform manylinux2014_x86_64 --python-version 311 --only-binary=:all: --target="$SCRIPT_DIR/py_modules" --upgrade Pillow>=10.0.0 2>&1
+pip install --platform manylinux2014_x86_64 --python-version 311 --only-binary=:all: --target="$SCRIPT_DIR/py_modules" --upgrade "Pillow>=10.0.0" 2>&1
 pnpm run build
 
 # ── Copy ─────────────────────────────────────────────────────

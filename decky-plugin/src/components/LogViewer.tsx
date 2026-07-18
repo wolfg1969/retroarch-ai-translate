@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { callable } from "@decky/api";
-import { staticClasses, ButtonItem } from "@decky/ui";
+import { PanelSection, PanelSectionRow, ButtonItem } from "@decky/ui";
 import { usePolling } from "../hooks/usePolling";
 
 const getLogs = callable<[number], string[]>("get_logs");
@@ -12,7 +12,7 @@ export default function LogViewer() {
 
   const { data: logs } = usePolling(
     () => getLogs(50),
-    expanded ? 2000 : 30000 // poll more when visible
+    expanded ? 2000 : 30000
   );
 
   useEffect(() => {
@@ -24,15 +24,12 @@ export default function LogViewer() {
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    // Disable auto-scroll if user scrolled up
     setAutoScroll(scrollHeight - scrollTop - clientHeight < 30);
   };
 
   return (
-    <div>
-      <div className={staticClasses.PanelSectionTitle}>Logs</div>
-
-      <div className={staticClasses.PanelSection}>
+    <PanelSection title="Logs">
+      <PanelSectionRow>
         <ButtonItem onClick={() => setExpanded(!expanded)}>
           {expanded ? "▼ Hide" : "▶ Show"} Logs
           {logs && logs.length > 0 && (
@@ -41,8 +38,10 @@ export default function LogViewer() {
             </span>
           )}
         </ButtonItem>
+      </PanelSectionRow>
 
-        {expanded && (
+      {expanded && (
+        <PanelSectionRow>
           <div>
             <div
               ref={scrollRef}
@@ -58,14 +57,11 @@ export default function LogViewer() {
                 color: "#ccc",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-all",
+                borderRadius: "4px",
               }}
             >
               {logs && logs.length > 0 ? (
-                logs.map((line, i) => (
-                  <div key={i}>
-                    {line}
-                  </div>
-                ))
+                logs.map((line, i) => <div key={i}>{line}</div>)
               ) : (
                 <div style={{ color: "#666" }}>No logs yet…</div>
               )}
@@ -83,8 +79,8 @@ export default function LogViewer() {
               </div>
             )}
           </div>
-        )}
-      </div>
-    </div>
+        </PanelSectionRow>
+      )}
+    </PanelSection>
   );
 }

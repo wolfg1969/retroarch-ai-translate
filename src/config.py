@@ -46,6 +46,11 @@ GAME_ALIASES = {
 }
 
 _CACHE_MAX = int(os.environ.get("TRANSLATION_CACHE_SIZE", "128"))
+SERVICE_SETTINGS_PATH = Path(os.path.expanduser(os.environ.get(
+    "SERVICE_SETTINGS_PATH",
+    str(CONFIG_DIR / "settings.json"),
+)))
+
 _CJK_FONT_PATH = os.environ.get(
     "CJK_FONT_PATH",
     "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",

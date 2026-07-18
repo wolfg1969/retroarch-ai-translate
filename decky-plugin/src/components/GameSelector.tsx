@@ -1,18 +1,13 @@
 import { useState, useEffect } from "react";
 import { callable, toaster } from "@decky/api";
-import { staticClasses, Dropdown, ButtonItem } from "@decky/ui";
+import { PanelSection, PanelSectionRow, Dropdown } from "@decky/ui";
 
 interface GameInfo {
   id: string;
   name: string;
 }
 
-interface StatusResponse {
-  running: boolean;
-}
-
 const getGames = callable<[], GameInfo[]>("get_games");
-const getStatus = callable<[], StatusResponse>("get_status");
 const saveSettings = callable<[{ game_id: string }], { success: boolean }>(
   "save_settings"
 );
@@ -59,29 +54,18 @@ export default function GameSelector() {
   };
 
   return (
-    <div>
-      <div className={staticClasses.PanelSectionTitle}>
-        Game Configuration
-      </div>
-
-      <div className={staticClasses.PanelSection}>
-        <div
-          style={{
-            padding: "10px 16px",
-            borderBottom: "1px solid rgba(255,255,255,0.05)",
-          }}
-        >
-          <Dropdown
-            rgOptions={dropdownOptions}
-            selectedOption={selected}
-            onChange={handleChange}
-            strDefaultLabel={
-              loading ? "Loading games…" : "Select a game"
-            }
-            menuLabel="Games"
-          />
-        </div>
-      </div>
-    </div>
+    <PanelSection title="Game Configuration">
+      <PanelSectionRow>
+        <Dropdown
+          rgOptions={dropdownOptions}
+          selectedOption={selected}
+          onChange={handleChange}
+          strDefaultLabel={
+            loading ? "Loading games…" : "Select a game"
+          }
+          menuLabel="Games"
+        />
+      </PanelSectionRow>
+    </PanelSection>
   );
 }

@@ -46,7 +46,7 @@ pip install \
   --only-binary=:all: \
   --target="$SCRIPT_DIR/py_modules" \
   --upgrade \
-  Pillow>=10.0.0 2>&1
+  "Pillow>=10.0.0" 2>&1
 echo "  ✓ Pillow vendored"
 
 # ── Step 3: Build frontend ────────────────────────────────────

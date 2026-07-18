@@ -1,11 +1,18 @@
 """Text translation — MT step."""
 
 import json
+import os
+import ssl
 import time
 from typing import Any
 from urllib.request import Request, urlopen
 
 from . import config
+
+# SteamOS / Arch Linux may ship with an incomplete CA certificate store.
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 def _api_call(url: str, payload: dict, key: str) -> dict:
@@ -16,7 +23,7 @@ def _api_call(url: str, payload: dict, key: str) -> dict:
     for attempt in range(2):
         try:
             req = Request(url, data=data, headers=headers, method="POST")
-            with urlopen(req, timeout=config.REQUEST_TIMEOUT) as response:
+            with urlopen(req, timeout=config.REQUEST_TIMEOUT, context=_SSL_CTX) as response:
                 return json.loads(response.read())
         except Exception as exc:
             last_err = exc
@@ -59,15 +66,22 @@ def _build_system_prompt(gc: dict[str, Any] | None) -> str:
 
 def translate(ocr_text: str, game_config: dict[str, Any] | None = None) -> str:
     """Japanese → Chinese.  Uses TRANSLATE_API_KEY if set, otherwise
-    falls back to the free Hunyuan-MT-7B on SiliconFlow."""
-    if config.TRANSLATE_API_KEY:
-        model = config.TRANSLATE_MODEL
-        url = f"{config.TRANSLATE_BASE_URL.rstrip('/')}/chat/completions"
-        key = config.TRANSLATE_API_KEY
+    falls back to the free Hunyuan-MT-7B on SiliconFlow.
+
+    Reads API settings from ``os.environ`` so changes via the web UI or
+    Decky QAM take effect immediately without a server restart.
+    """
+    translate_key = os.environ.get("TRANSLATE_API_KEY", config.TRANSLATE_API_KEY)
+    if translate_key:
+        model = os.environ.get("TRANSLATE_MODEL", config.TRANSLATE_MODEL)
+        url_base = os.environ.get("TRANSLATE_BASE_URL", config.TRANSLATE_BASE_URL)
+        key = translate_key
     else:
-        model = config.TRANSLATE_MT_FREE_MODEL
-        url = f"{config.VISION_BASE_URL.rstrip('/')}/chat/completions"
-        key = config.VISION_API_KEY
+        model = os.environ.get("TRANSLATE_MT_FREE_MODEL", config.TRANSLATE_MT_FREE_MODEL)
+        url_base = os.environ.get("VISION_BASE_URL", config.VISION_BASE_URL)
+        key = os.environ.get("VISION_API_KEY", config.VISION_API_KEY)
+
+    url = f"{url_base.rstrip('/')}/chat/completions"
 
     sys_prompt = _build_system_prompt(game_config)
     print(f"[MT] model={model} key={'***' if key else '(free)'} game={bool(game_config)}", flush=True)

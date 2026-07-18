@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { callable } from "@decky/api";
 import {
-  staticClasses,
+  PanelSection,
+  PanelSectionRow,
   ButtonItem,
   SteamSpinner,
 } from "@decky/ui";
@@ -27,11 +29,21 @@ export default function StatusPanel() {
     3000
   );
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const handleToggle = async () => {
-    if (status?.running) {
-      await stopService();
-    } else {
-      await startService();
+    setActionError(null);
+    try {
+      if (status?.running) {
+        await stopService();
+      } else {
+        const result = await startService();
+        if ((result as any).error) {
+          setActionError((result as any).error);
+        }
+      }
+    } catch (e) {
+      setActionError(String(e));
     }
   };
 
@@ -39,33 +51,29 @@ export default function StatusPanel() {
   const statusText = status?.running ? "Running" : "Stopped";
 
   return (
-    <div>
-      <div className={staticClasses.PanelSectionTitle}>
-        Service Status
-      </div>
-
-      <div className={staticClasses.PanelSection}>
-        {loading && !status ? (
+    <PanelSection title="Service Status">
+      {loading && !status ? (
+        <PanelSectionRow>
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              padding: "12px",
               gap: "8px",
+              padding: "4px 0",
             }}
           >
             <SteamSpinner /> <span>Loading…</span>
           </div>
-        ) : (
-          <>
-            {/* Status indicator */}
+        </PanelSectionRow>
+      ) : (
+        <>
+          {/* Status indicator */}
+          <PanelSectionRow>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                padding: "10px 16px",
                 gap: "10px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
               }}
             >
               <span
@@ -85,47 +93,52 @@ export default function StatusPanel() {
                 </span>
               )}
             </div>
+          </PanelSectionRow>
 
-            {/* Model info */}
-            {status && (
-              <div
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "0.82em",
-                  color: "#aaa",
-                }}
-              >
+          {/* Model info */}
+          {status && (
+            <PanelSectionRow>
+              <div style={{ fontSize: "0.82em", color: "#aaa" }}>
                 <div>OCR: {status.vision_model}</div>
                 <div>MT: {status.translate_model}</div>
                 <div>
                   API Keys:{" "}
-                  <span style={{ color: status.has_vision_key ? "#4caf50" : "#f44336" }}>
+                  <span
+                    style={{
+                      color: status.has_vision_key ? "#4caf50" : "#f44336",
+                    }}
+                  >
                     Vision {status.has_vision_key ? "✓" : "✗"}
                   </span>
                   {" · "}
-                  <span style={{ color: status.has_translate_key ? "#4caf50" : "#aaa" }}>
+                  <span
+                    style={{
+                      color: status.has_translate_key ? "#4caf50" : "#aaa",
+                    }}
+                  >
                     MT {status.has_translate_key ? "✓" : "(free)"}
                   </span>
                 </div>
               </div>
-            )}
+            </PanelSectionRow>
+          )}
 
-            {error && (
-              <div style={{ padding: "8px 16px", color: "#f44336", fontSize: "0.82em" }}>
-                Error: {error}
+          {(error || actionError) && (
+            <PanelSectionRow>
+              <div style={{ color: "#f44336", fontSize: "0.82em" }}>
+                {actionError || error}
               </div>
-            )}
+            </PanelSectionRow>
+          )}
 
-            {/* Start / Stop button */}
-            <ButtonItem
-              onClick={handleToggle}
-              disabled={loading}
-            >
+          {/* Start / Stop button */}
+          <PanelSectionRow>
+            <ButtonItem onClick={handleToggle} disabled={loading}>
               {status?.running ? "⏹ Stop Service" : "▶ Start Service"}
             </ButtonItem>
-          </>
-        )}
-      </div>
-    </div>
+          </PanelSectionRow>
+        </>
+      )}
+    </PanelSection>
   );
 }
