@@ -1,4 +1,4 @@
-# RetroArch AI Translation
+# RetroArch AI Translate
 
 基于 Vision LLM 的实时游戏截图翻译服务，通过 RetroArch AI Service 协议在画面叠加层显示翻译结果。
 
