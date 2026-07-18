@@ -1,7 +1,6 @@
 node_modules/
 dist/
 dist-pkg/
-pnpm-lock.yaml
 *.zip
 py_modules/retroarch_ai/__pycache__/
 assets/wqy-zenhei.ttc
