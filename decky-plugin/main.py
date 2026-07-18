@@ -109,6 +109,9 @@ def _inject_env(settings: dict[str, Any]) -> None:
     os.environ.setdefault("LISTEN_HOST", "0.0.0.0")
     os.environ.setdefault("LISTEN_PORT", str(settings.get("listen_port", 4404)))
 
+    # Decky plugin = single-device mode (no per-IP game tracking)
+    os.environ["SINGLE_DEVICE_MODE"] = "1"
+
     # API keys from settings → env vars
     if settings.get("vision_api_key"):
         os.environ["VISION_API_KEY"] = settings["vision_api_key"]
@@ -354,6 +357,13 @@ class Plugin:
         ok = _save_settings(current)
         if not ok:
             return {"success": False, "error": "Failed to save settings"}
+
+        # Apply game_id to the translation pipeline (writes to .device_games.json)
+        game_id = settings.get("game_id")
+        if game_id is not None:
+            from retroarch_ai.game_config import set_current_game
+            set_current_game(game_id)
+            decky.logger.info(f"Game set to: '{game_id or 'auto-detect'}'")
 
         # Apply to env
         self._apply_env_from_settings(current)
