@@ -70,11 +70,6 @@ jobs:
           cd decky-plugin
           pnpm install --frozen-lockfile
 
-      - name: Bundle CJK font
-        run: |
-          cd decky-plugin
-          bash download-font.sh
-
       - name: Build plugin package
         run: |
           cd decky-plugin

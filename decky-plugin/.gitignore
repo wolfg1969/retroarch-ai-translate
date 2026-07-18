@@ -3,7 +3,6 @@ dist/
 dist-pkg/
 *.zip
 py_modules/retroarch_ai/__pycache__/
-assets/wqy-zenhei.ttc
 
 # Python modules synced from ../src/ — canonical source is ../src/*.py
 py_modules/retroarch_ai/config.py
