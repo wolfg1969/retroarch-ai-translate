@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags: [v*]
+  workflow_dispatch:
+
+jobs:
+  # ── Docker multi-user package (no Decky files) ──────────────────
+  docker-package:
+    name: Docker package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create docker package
+        run: |
+          PKG="retroarch-ai-translate-docker"
+          mkdir -p "dist/$PKG"
+
+          cp -r src              "dist/$PKG/"
+          cp -r templates        "dist/$PKG/"
+          cp -r references       "dist/$PKG/"
+          cp -r games            "dist/$PKG/"
+          cp docker-compose.yml  "dist/$PKG/"
+          cp Dockerfile          "dist/$PKG/"
+          cp requirements.txt    "dist/$PKG/"
+          cp .env.example        "dist/$PKG/"
+          cp README.md           "dist/$PKG/"
+          cp LICENSE             "dist/$PKG/"
+
+          # Clean pycache
+          find "dist/$PKG" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+          find "dist/$PKG" -type f -name .DS_Store -delete 2>/dev/null || true
+
+          # Remove Decky-related references from games/ if any
+          rm -f "dist/$PKG/games/.device_games.json" 2>/dev/null || true
+          rm -f "dist/$PKG/games/settings.json" 2>/dev/null || true
+
+          cd dist
+          tar czf "../${PKG}.tar.gz" "$PKG"
+          cd ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retroarch-ai-translate-docker
+          path: retroarch-ai-translate-docker.tar.gz
+
+  # ── Decky plugin package ────────────────────────────────────────
+  decky-package:
+    name: Decky plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: decky-plugin/pnpm-lock.yaml
+
+      - name: Install frontend deps
+        run: |
+          cd decky-plugin
+          pnpm install --frozen-lockfile
+
+      - name: Bundle CJK font
+        run: |
+          cd decky-plugin
+          bash download-font.sh
+
+      - name: Build plugin package
+        run: |
+          cd decky-plugin
+          bash package.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retroarch-ai-translation-decky
+          path: decky-plugin/retroarch-ai-translation.zip
+
+  # ── GitHub Release (on tag push only) ───────────────────────────
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [docker-package, decky-package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          cp artifacts/retroarch-ai-translate-docker/retroarch-ai-translate-docker.tar.gz release-assets/
+          cp artifacts/retroarch-ai-translation-decky/retroarch-ai-translation.zip   release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

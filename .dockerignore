@@ -10,3 +10,6 @@ __pycache__/
 games/
 debug/
 screenshots/
+decky-plugin/
+CLAUDE.md
+SKILL.md
