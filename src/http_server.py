@@ -56,15 +56,24 @@ SETTINGS_DEFAULTS = {
 
 
 def _load_service_settings() -> dict[str, Any]:
+    """Load saved settings, falling back to current config module values."""
+    base = {
+        "vision_api_key": config.VISION_API_KEY,
+        "vision_base_url": config.VISION_BASE_URL,
+        "vision_ocr_model": config.VISION_OCR_MODEL,
+        "translate_api_key": config.TRANSLATE_API_KEY,
+        "translate_base_url": config.TRANSLATE_BASE_URL,
+        "translate_model": config.TRANSLATE_MODEL,
+    }
     try:
         path = config.SERVICE_SETTINGS_PATH
         if path.exists():
             data = json.loads(path.read_text())
             if isinstance(data, dict):
-                return {**SETTINGS_DEFAULTS, **data}
+                return {**base, **data}
     except Exception:
         pass
-    return dict(SETTINGS_DEFAULTS)
+    return base
 
 
 def _save_service_settings(data: dict[str, Any]) -> None:
@@ -203,19 +212,14 @@ class TranslationHandler(BaseHTTPRequestHandler):
                 if val:
                     data[key] = val
             _save_service_settings(data)
-            # Apply to os.environ so the running service picks up changes
-            if data.get("vision_api_key"):
-                os.environ["VISION_API_KEY"] = data["vision_api_key"]
-            if data.get("vision_base_url"):
-                os.environ["VISION_BASE_URL"] = data["vision_base_url"]
-            if data.get("vision_ocr_model"):
-                os.environ["VISION_OCR_MODEL"] = data["vision_ocr_model"]
-            if data.get("translate_api_key"):
-                os.environ["TRANSLATE_API_KEY"] = data["translate_api_key"]
-            if data.get("translate_base_url"):
-                os.environ["TRANSLATE_BASE_URL"] = data["translate_base_url"]
-            if data.get("translate_model"):
-                os.environ["TRANSLATE_MODEL"] = data["translate_model"]
+            # Apply to both os.environ and config globals so the running
+            # service picks up changes immediately (config vars are read
+            # once at import time, not re-read from os.environ per request).
+            for key in SETTINGS_DEFAULTS:
+                val = data.get(key, "")
+                if val:
+                    os.environ[key.upper()] = val
+                    setattr(config, key.upper(), val)
             html_response(self, _settings_ui(saved=True))
             return
 

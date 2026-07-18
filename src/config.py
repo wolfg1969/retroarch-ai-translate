@@ -56,3 +56,25 @@ _CJK_FONT_PATH = os.environ.get(
     "CJK_FONT_PATH",
     "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
 )
+
+# ── Apply settings.json overrides (web UI / Decky plugin persistence) ──
+
+_SETTINGS_KEYS = (
+    "VISION_API_KEY",
+    "VISION_BASE_URL",
+    "VISION_OCR_MODEL",
+    "TRANSLATE_API_KEY",
+    "TRANSLATE_BASE_URL",
+    "TRANSLATE_MODEL",
+)
+
+if SERVICE_SETTINGS_PATH.exists():
+    try:
+        import json
+        _saved = json.loads(SERVICE_SETTINGS_PATH.read_text())
+        if isinstance(_saved, dict):
+            for _key in _SETTINGS_KEYS:
+                if _saved.get(_key):
+                    globals()[_key] = _saved[_key]
+    except Exception:
+        pass
