@@ -8,6 +8,7 @@ interface GameInfo {
 }
 
 const getGames = callable<[], GameInfo[]>("get_games");
+const getSettings = callable<[], { game_id?: string }>("get_settings");
 const saveSettings = callable<[{ game_id: string }], { success: boolean }>(
   "save_settings"
 );
@@ -20,8 +21,14 @@ export default function GameSelector() {
   useEffect(() => {
     (async () => {
       try {
-        const list = await getGames();
+        const [list, settings] = await Promise.all([
+          getGames(),
+          getSettings(),
+        ]);
         setGames(list);
+        if (settings?.game_id) {
+          setSelected(settings.game_id);
+        }
       } catch (e) {
         console.error("Failed to load games:", e);
       } finally {

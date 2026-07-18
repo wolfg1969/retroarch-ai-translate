@@ -337,8 +337,11 @@ class Plugin:
     async def get_settings(self) -> dict[str, Any]:
         """Return current settings (API keys masked)."""
         settings = _load_settings()
-        # Mask keys for display
+        # Include current game_id (stored in .device_games.json, not settings.json)
+        from retroarch_ai.game_config import current_game_id as _gid
+
         display = dict(settings)
+        display["game_id"] = _gid or ""
         if display.get("vision_api_key"):
             display["vision_api_key"] = "••••" + display["vision_api_key"][-4:]
         if display.get("translate_api_key"):
