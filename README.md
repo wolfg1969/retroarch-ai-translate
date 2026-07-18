@@ -45,6 +45,7 @@ python -m src.retroarch_translate
 1. **设置 → AI 服务 → AI 服务开关** = 开启
 2. **设置 → AI 服务 → AI 服务模式** = **Image (mode 0)**（必须选此项才能显示叠加层）
 3. **设置 → AI 服务 → AI 服务网址** = `http://127.0.0.1:4404`
+   - Steam Deck 上可在 `/etc/hosts` 添加 `127.0.0.1 translate.lan`，然后填写 `http://translate.lan:4404`（注意：不可用 `.local` 后缀，会被 mDNS 拦截）
 4. **设置 → AI 服务 → 翻译时暂停** = 开启
 5. **设置 → 输入 → 快捷键 → AI 服务** — 绑定一个按键
 
@@ -53,6 +54,57 @@ python -m src.retroarch_translate
 ## 效果预览
 
 ![示例截图](screenshots/example.png)
+
+## Web 管理界面
+
+服务启动后，浏览器打开 `http://localhost:4404/` 即可访问管理界面，无需额外配置。
+
+### 游戏切换
+
+在首页下拉菜单中选择游戏配置，语言模型会立即应用对应的术语表、角色语气和名台词。支持多设备独立选择（通过 IP 区分），也可以选择「自动检测」由 RetroArch 的 `label` 字段自动匹配。
+
+![游戏设置](screenshots/game-settings.png)
+
+### API 密钥配置
+
+点击首页底部的「⚙️ API 设置」进入密钥管理页面。支持配置：
+
+- **Vision API**：OCR 模型、API 地址、密钥
+- **Translate API**：翻译模型、API 地址、密钥（可选，不填则使用免费模型）
+
+保存后无需重启服务，立即生效。
+
+![API 设置](screenshots/api-key-settings.png)
+
+## Steam Deck 插件
+
+项目提供 Decky Loader 插件，可在 Steam Deck 的快速访问菜单（QAM）中直接管理翻译服务。
+
+![Decky 插件](screenshots/decky-plugin.jpg)
+
+### 功能
+
+- **启动 / 停止服务**：一键开关翻译 HTTP 服务，查看运行状态和当前模型
+- **切换游戏配置**：下拉菜单选择已加载的游戏，自动应用术语表和角色语气
+- **配置 API 密钥**：在 QAM 中直接填写 Vision / Translate API 密钥，保存即生效
+- **实时日志**：查看翻译流水线的最新日志，方便排查问题
+- **开机自启**：插件加载时自动启动服务（可在设置中关闭）
+
+### 安装
+
+1. 确保 Steam Deck 已安装 [Decky Loader](https://decky.xyz)
+2. 下载 `retroarch-ai-translation.zip`
+3. Decky → 设置 → 开发者 → 从 ZIP 安装插件
+4. 重启插件加载器：`sudo systemctl restart plugin_loader`
+
+### 开发
+
+```bash
+cd decky-plugin
+pnpm install
+pnpm run build      # 构建前端
+pnpm run package    # 打包为 .zip 分发
+```
 
 ## 环境变量
 
@@ -117,18 +169,24 @@ glossary:
 ```
 ├── src/
 │   ├── retroarch_translate.py   # 入口，启动 HTTP 服务
-│   ├── http_server.py           # HTTP 请求处理，翻译流水线
+│   ├── http_server.py           # HTTP 请求处理 + Web 管理界面
 │   ├── ocr.py                   # Vision LLM OCR 客户端
 │   ├── translate.py             # 机器翻译客户端
 │   ├── overlay.py               # 基于 Pillow 的文字叠加层渲染
 │   ├── cache.py                 # LRU 截图翻译缓存
 │   ├── config.py                # 环境变量常量
-│   └── game_config.py           # YAML 配置加载与解析
+│   ├── game_config.py           # YAML 配置加载与解析
+│   └── server_manager.py        # HTTP 服务生命周期管理（日志缓冲）
+├── decky-plugin/                # Steam Deck Decky Loader 插件
+│   ├── main.py                  # 插件后端（RPC 接口、服务管理）
+│   ├── src/                     # React TypeScript 前端组件
+│   ├── py_modules/              # vendored Python 依赖
+│   └── package.sh               # 打包脚本
 ├── templates/
-│   ├── game_config.yaml         # 预置游戏配置（3 个游戏）
+│   └── game_config.yaml         # 预置游戏配置
 ├── references/
-│   ├── protocol-spec.md         # RetroArch AI Service 协议规范
-├── games/                       # 运行时游戏状态（持久化当前游戏）
+│   └── protocol-spec.md         # RetroArch AI Service 协议规范
+├── games/                       # 运行时游戏状态 + 自定义配置
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
@@ -152,6 +210,7 @@ glossary:
 - **本机**（推荐）：Python 服务与 RetroArch 在同一台机器，绑定 `127.0.0.1:4404`。
 - **家庭服务器 / NAS**：Docker 运行，RetroArch 通过局域网 IP 访问。
 - **复古掌机**（RG35XX、Miyoo 等）：在局域网其他设备上运行服务，RetroArch 配置远程 URL。Android 设备可通过 `adb forward tcp:4404 tcp:4404` 转发。
+- **Steam Deck**：安装 Decky Loader 插件，在 QAM 中管理服务。RetroArch URL 可填写 `http://127.0.0.1:4404`，或添加 hosts 映射后使用 `http://translate.lan:4404`。
 
 ## 注意事项
 
