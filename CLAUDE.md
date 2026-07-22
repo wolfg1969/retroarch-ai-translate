@@ -25,9 +25,12 @@ PNG_B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjC
 curl -sS -X POST "http://localhost:4404/?output=text" \
   -H "Content-Type: application/json" \
   -d "{\"image\":\"$PNG_B64\",\"label\":\"snes__test\",\"state\":{\"paused\":1}}"
+
+# Offline regression tests (no real API calls)
+PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -v
 ```
 
-No test suite, linter, or type checker is configured.
+A small standard-library `unittest` regression suite covers OCR hints, game config parsing/fingerprints, cache isolation, and HTTP config propagation. No linter or type checker is configured.
 
 ## Architecture
 
@@ -39,8 +42,8 @@ Real-time translation overlay for RetroArch. Python 3.10+, zero external deps at
 PNG base64 → LRU cache check → Vision LLM OCR → MT translate → JSON response + PNG overlay
 ```
 
-- **Cache** (`cache.py`): Hashes the dialog area (5% top / 10% bottom cropped, downscaled to 32×24 grayscale) so animated cursors/status bars don't break cache hits. LRU, ~128 entries by default.
-- **OCR** (`ocr.py`): Sends base64 PNG to a Vision LLM (`PaddleOCR-VL-1.5` on SiliconFlow by default) asking it to extract Japanese text.
+- **Cache** (`cache.py`): Hashes the dialog area (5% top / 10% bottom cropped, downscaled to 32×24 grayscale) together with a stable full-game-config fingerprint, so animated cursors/status bars don't break cache hits while OCR or translation config changes invalidate old results. LRU, ~128 entries by default.
+- **OCR** (`ocr.py`): Sends base64 PNG to a Vision LLM (`PaddleOCR-VL-1.5` on SiliconFlow by default) asking it to extract Japanese text, with optional bounded UI/context hints from the selected game's `ocr` mapping.
 - **Translate** (`translate.py`): Builds a game-aware system prompt (glossary → signature phrases → character tones → format rules) and sends OCR text to an MT model. Falls back to free `Hunyuan-MT-7B` if `TRANSLATE_API_KEY` is unset. Disables DeepSeek thinking tokens.
 - **Overlay** (`overlay.py`): Parses speaker name vs dialogue from translated text, renders semi-transparent background bar + CJK text with Pillow. Font path from `CJK_FONT_PATH` env var (falls back to `/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc`).
 

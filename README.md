@@ -127,7 +127,7 @@ pnpm run package    # 打包为 .zip 分发
 
 ## 游戏配置
 
-每个游戏可以通过 YAML 配置文件定制翻译行为，支持术语表、角色语气、标志性台词和场景模式。配置文件放在 `./games/<game_id>.yaml`（项目根目录下的 games 文件夹），也可以直接写入 [templates/game_config.yaml](templates/game_config.yaml)。
+每个游戏可以通过 YAML 配置文件定制 OCR 和翻译行为，支持界面识别提示、术语表、角色语气、标志性台词和场景模式。配置文件放在 `./games/<game_id>.yaml`（项目根目录下的 games 文件夹），也可以直接写入 [templates/game_config.yaml](templates/game_config.yaml)。
 
 内置三个游戏配置示例：**逆转裁判**（`gyakuten`）、**火焰纹章**（`fire_emblem`）、**塞尔达传说 缩小帽**（`zelda_minish`）。
 
@@ -137,6 +137,14 @@ pnpm run package    # 打包为 .zip 分发
 game_id: gyakuten
 display_name: 逆转裁判
 language: jpn
+
+# 可选 OCR 上下文：仅用于帮助视觉模型定位和辨认文字
+ocr:
+  ui_style: "GBA 法庭文字冒险界面，人物立绘位于画面中央或两侧。"
+  dialogue_style: "深色对话框配白色像素日文，角色名与正文分开显示。"
+  dialogue_location: "主要对话通常位于画面下方约三分之一。"
+  characters: "成歩堂龍一、綾里真宵、御劍怜侍、裁判長"
+  ignore_regions: "忽略纯装饰背景和无文字的人物立绘。"
 
 signature_phrases:
   異議あり！: 反对！
@@ -157,6 +165,10 @@ glossary:
   証拠: 证据
   # ... 更多术语
 ```
+
+`ocr` 中的 `ui_style`、`dialogue_style`、`dialogue_location`、`characters` 和 `ignore_regions` 均为可选的单行字符串。为兼容 Decky 内置的精简 YAML 解析器，请勿在该段使用列表、块字符串或更深层嵌套；多个角色可用逗号或顿号分隔。提示只影响 Vision OCR 的定位和辨字，不会裁剪截图，也不能保证模型完全避免误识别。旧配置无需迁移；没有有效 `ocr` 段时仍使用原有固定提示。
+
+翻译缓存会同时考虑截图和完整游戏配置，因此修改 OCR 提示、术语表或角色语气后不会复用旧译文。
 
 ### 运行时切换配置
 
@@ -216,7 +228,7 @@ glossary:
 
 - 服务始终返回 HTTP 200，错误信息放在 JSON 的 `"error"` 字段中（遵循 RetroArch 协议规范）。
 - RetroArch 中 **翻译时暂停** 必须开启，否则截图可能捕获动画中间帧。
-- 翻译缓存通过对截图裁剪上下边缘并降采样后取哈希作为键，因此闪烁的光标和状态栏不会导致缓存未命中。
+- 翻译缓存通过对截图裁剪上下边缘并降采样后取哈希，并加入当前完整游戏配置的指纹；闪烁的光标和状态栏不会导致缓存未命中，切换或修改配置也不会复用旧译文。
 
 ## 参考资料
 

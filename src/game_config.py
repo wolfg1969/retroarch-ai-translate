@@ -1,5 +1,6 @@
 """Game config loader — YAML parsing and game config resolution."""
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -209,6 +210,70 @@ def load_all() -> list[dict[str, Any]]:
     _config_cache["stamp"] = stamp
     _config_cache["configs"] = configs
     return configs
+
+
+def _fingerprint_value(value: Any, active: set[int]) -> Any:
+    """Convert YAML values to deterministic JSON primitives."""
+    if value is None or isinstance(value, (bool, int, str)):
+        return [type(value).__name__, value]
+    if isinstance(value, float):
+        return ["float", repr(value)]
+    if isinstance(value, bytes):
+        return ["bytes", value.hex()]
+
+    value_id = id(value)
+    if value_id in active:
+        return ["cycle"]
+
+    if isinstance(value, dict):
+        active.add(value_id)
+        try:
+            entries = [
+                [_fingerprint_value(key, active), _fingerprint_value(item, active)]
+                for key, item in value.items()
+            ]
+            entries.sort(key=lambda entry: json.dumps(
+                entry[0], ensure_ascii=False, separators=(",", ":")
+            ))
+            return ["dict", entries]
+        finally:
+            active.remove(value_id)
+
+    if isinstance(value, (list, tuple)):
+        active.add(value_id)
+        try:
+            return [
+                type(value).__name__,
+                [_fingerprint_value(item, active) for item in value],
+            ]
+        finally:
+            active.remove(value_id)
+
+    if isinstance(value, (set, frozenset)):
+        active.add(value_id)
+        try:
+            items = [_fingerprint_value(item, active) for item in value]
+            items.sort(key=lambda item: json.dumps(
+                item, ensure_ascii=False, separators=(",", ":")
+            ))
+            return [type(value).__name__, items]
+        finally:
+            active.remove(value_id)
+
+    isoformat = getattr(value, "isoformat", None)
+    if callable(isoformat):
+        return [type(value).__name__, isoformat()]
+    return [f"{type(value).__module__}.{type(value).__qualname__}", str(value)]
+
+
+def config_fingerprint(game_cfg: dict[str, Any] | None) -> str:
+    """Return a stable fingerprint for YAML-derived configuration values."""
+    canonical = json.dumps(
+        _fingerprint_value(game_cfg, set()),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def normalize_game_id(value: str | None) -> str | None:

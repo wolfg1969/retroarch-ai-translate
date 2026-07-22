@@ -7,6 +7,14 @@ display_name: 弹丸论破 希望的学园与绝望的高中生
 language: jpn
 default_scene: daily
 
+# OCR context hints (single-line strings for Decky fallback parser compatibility)
+ocr:
+  ui_style: "PSP 文字冒险界面，校园探索、角色对话和学级裁判演出会交替出现。"
+  dialogue_style: "高对比度日文叠加在风格化对话框或动态裁判界面上，角色名与正文可能分区显示。"
+  dialogue_location: "日常对话通常位于画面下方，学级裁判发言和关键词可能出现在画面中央或横向移动。"
+  characters: "苗木誠、霧切響子、十神白夜、モノクマ、舞園さやか、桑田怜恩、大和田紋土、不二咲千尋、セレス、朝日奈葵、葉隠康比呂、大神さくら、石丸清多夏、山田一二三、腐川冬子"
+  ignore_regions: "忽略无文字的人物立绘、装饰性速度线、准星和按钮图标；保留裁判界面中实际显示的日文关键词。"
+
 aliases:
   - dangan_ronpa
   - trigger_happy_havoc

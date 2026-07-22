@@ -175,6 +175,36 @@ def _web_ui(current_id: str, client_ip: str = "") -> str:
 </html>"""
 
 
+def _pipeline_cache_context(game_cfg: dict[str, Any] | None) -> str:
+    """Fingerprint game config and effective output-affecting AI settings."""
+    translate_key = os.environ.get("TRANSLATE_API_KEY", config.TRANSLATE_API_KEY)
+    if translate_key:
+        translate_model = os.environ.get("TRANSLATE_MODEL", config.TRANSLATE_MODEL)
+        translate_base_url = os.environ.get(
+            "TRANSLATE_BASE_URL", config.TRANSLATE_BASE_URL
+        )
+        translate_mode = "configured"
+    else:
+        translate_model = os.environ.get(
+            "TRANSLATE_MT_FREE_MODEL", config.TRANSLATE_MT_FREE_MODEL
+        )
+        translate_base_url = os.environ.get("VISION_BASE_URL", config.VISION_BASE_URL)
+        translate_mode = "free"
+
+    return game_config.config_fingerprint({
+        "game": game_cfg,
+        "vision": {
+            "model": os.environ.get("VISION_OCR_MODEL", config.VISION_OCR_MODEL),
+            "base_url": os.environ.get("VISION_BASE_URL", config.VISION_BASE_URL),
+        },
+        "translation": {
+            "mode": translate_mode,
+            "model": translate_model,
+            "base_url": translate_base_url,
+        },
+    })
+
+
 class TranslationHandler(BaseHTTPRequestHandler):
     server_version = "RetroArchAI/3.0"
 
@@ -277,13 +307,14 @@ class TranslationHandler(BaseHTTPRequestHandler):
             if game_id:
                 print(f"[Game] resolved '{game_id}' (IP={client_ip}, label={label!r})", flush=True)
             gc = game_config.load(game_id)
+            cache_context = _pipeline_cache_context(gc)
 
-            cached = cache.get(png_bytes)
+            cached = cache.get(png_bytes, cache_context)
             if cached is not None:
                 translated = cached
                 print("[Cache] hit", flush=True)
             else:
-                ocr_text = ocr.extract_text(png_b64)
+                ocr_text = ocr.extract_text(png_b64, gc)
                 if not ocr_text.strip():
                     translated = "[未检测到文字]"
                 else:
@@ -291,7 +322,7 @@ class TranslationHandler(BaseHTTPRequestHandler):
                     if not translated.strip():
                         translated = "[翻译失败]"
                     else:
-                        cache.put(png_bytes, translated)
+                        cache.put(png_bytes, translated, cache_context)
 
             response: dict[str, Any] = {
                 "text": translated,

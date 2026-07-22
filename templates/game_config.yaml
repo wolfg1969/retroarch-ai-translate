@@ -25,6 +25,15 @@ display_name: 逆转裁判
 language: jpn
 default_scene: courtroom
 
+# Optional OCR context. Keep values as single-line strings for Decky compatibility.
+# These hints guide text recognition only; they do not crop the screenshot.
+ocr:
+  ui_style: "GBA 法庭文字冒险界面，人物立绘通常位于画面中央或两侧。"
+  dialogue_style: "深色对话框配白色像素日文，角色名与对话正文分开显示。"
+  dialogue_location: "主要对话通常位于画面下方约三分之一，角色名在对话框左上方。"
+  characters: "成歩堂龍一、綾里真宵、御劍怜侍、裁判長"
+  ignore_regions: "忽略纯装饰背景、无文字的人物立绘和对话框边框。"
+
 # Overlay display style
 overlay:
   font:
@@ -95,6 +104,13 @@ game_id: fire_emblem
 display_name: 火焰纹章
 language: jpn
 
+ocr:
+  ui_style: "GBA 战棋角色扮演界面，地图、角色状态窗口和剧情对话框可能交替出现。"
+  dialogue_style: "剧情对话使用清晰的像素日文，角色名和正文可能位于不同窗口。"
+  dialogue_location: "剧情文字通常位于画面上方或下方的矩形对话框；菜单文字集中在状态窗口。"
+  characters: "マルス、シーダ"
+  ignore_regions: "忽略地图地形纹理、角色图标和没有文字的数值条。"
+
 signature_phrases:
   戦闘開始！: 战斗开始！
   待機: 待机
@@ -158,6 +174,13 @@ glossary:
 game_id: zelda_minish
 display_name: 塞尔达传说 缩小帽
 language: jpn
+
+ocr:
+  ui_style: "GBA 动作冒险界面，对话、物品说明和菜单会覆盖在场景画面上。"
+  dialogue_style: "浅色或深色文本框中的像素日文，重要词语有时使用不同颜色。"
+  dialogue_location: "对话框通常横跨画面下方，菜单和物品说明可能位于画面中央。"
+  characters: "リンク、ゼルダ、グフー、エゼロ"
+  ignore_regions: "忽略心形生命值、卢比和按键图标本身，只转录其旁边实际可见的日文。"
 
 signature_phrases:
   冒険の書: 冒险之书
