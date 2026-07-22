@@ -19,8 +19,8 @@ const MainPanel = () => {
 
 export default definePlugin(() => {
   return {
-    name: "AI Translation",
-    titleView: <div className={staticClasses.Title}>AI Translation</div>,
+    name: "RetroArch AI Translate",
+    titleView: <div className={staticClasses.Title}>RetroArch AI Translate</div>,
     content: <MainPanel />,
     icon: <FaLanguage />,
     onDismount() {},

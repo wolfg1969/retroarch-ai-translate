@@ -70,7 +70,7 @@ if $RESTART; then
     sudo systemctl restart plugin_loader
     echo "  ✓ Decky plugin loader restarted"
     echo ""
-    echo "Check QAM menu → AI Translation"
+    echo "Check QAM menu → RetroArch AI Translate"
 else
     echo ""
     echo "(skipped restart — --no-restart flag was set)"

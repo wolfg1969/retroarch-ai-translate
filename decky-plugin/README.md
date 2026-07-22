@@ -29,7 +29,7 @@ Deck Quick Access Menu.
 1. Download the latest `retroarch-ai-translate.zip` from Releases
 2. Extract to `~/homebrew/plugins/retroarch-ai-translate/`
 3. Restart Decky: `systemctl restart plugin_loader.service`
-4. The plugin appears in QAM under "AI Translation"
+4. The plugin appears in QAM under "RetroArch AI Translate"
 
 ### CJK Font
 
