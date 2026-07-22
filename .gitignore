@@ -39,3 +39,4 @@ dist/
 .codex/
 
 debug/
+screenshots/*.png

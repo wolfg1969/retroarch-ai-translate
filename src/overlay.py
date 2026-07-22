@@ -102,7 +102,11 @@ def _is_speaker_name(candidate: str, known: set[str]) -> bool:
             for name in known:
                 if re.search(pattern, name):
                     return True
-        return False
+        # Not in the known list, but still plausibly a speaker name
+        # (short, no punctuation, standalone first line with dialogue after).
+        # Accept names up to 5 chars so unlisted supporting characters
+        # like 星影 are still formatted as speakers.
+        return len(candidate) <= 5
     # Without known characters, be conservative:
     # accept only if short AND followed by more text (checked by caller)
     return len(candidate) <= 6

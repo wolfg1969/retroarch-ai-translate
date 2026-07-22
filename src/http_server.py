@@ -351,6 +351,7 @@ def _pipeline_cache_context(game_cfg: dict[str, Any] | None) -> str:
             "base_url": os.environ.get("VISION_BASE_URL", config.VISION_BASE_URL),
         },
         "translation": {
+            "prompt_version": translate.TRANSLATION_PROMPT_VERSION,
             "mode": translate_mode,
             "model": translate_model,
             "base_url": translate_base_url,

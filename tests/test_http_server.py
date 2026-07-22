@@ -106,7 +106,14 @@ class PipelineCacheContextTests(unittest.TestCase):
         self.assertNotEqual(baseline, changed_vision)
         self.assertNotEqual(baseline, paid_a)
         self.assertEqual(paid_a, paid_b)
-
+    def test_prompt_version_changes_context(self):
+        game_cfg = {"game_id": "test"}
+        with patch.dict("src.http_server.os.environ", {}, clear=True):
+            with patch.object(http_server.translate, "TRANSLATION_PROMPT_VERSION", 1):
+                first = http_server._pipeline_cache_context(game_cfg)
+            with patch.object(http_server.translate, "TRANSLATION_PROMPT_VERSION", 2):
+                second = http_server._pipeline_cache_context(game_cfg)
+        self.assertNotEqual(first, second)
 
 
 class HttpLogsEndpointTests(unittest.TestCase):

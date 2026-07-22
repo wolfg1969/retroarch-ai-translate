@@ -9,6 +9,8 @@ from urllib.request import Request, urlopen
 
 from . import config
 
+TRANSLATION_PROMPT_VERSION = 2
+
 # SteamOS / Arch Linux may ship with an incomplete CA certificate store.
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
@@ -39,7 +41,11 @@ def _api_call(url: str, payload: dict, key: str) -> dict:
 
 def _build_system_prompt(gc: dict[str, Any] | None) -> str:
     """Build a game-aware system prompt from a game config."""
-    parts = ["将以下日文翻译成简体中文。只输出译文，不要解释。"]
+    parts = [
+        "将以下日文完整翻译成简体中文。只输出译文，不要解释。",
+        "完整性要求：不得省略、合并或概括任何可见文字。输入若有多行，输出必须按原顺序逐行对应并保留相同行数；菜单标题、操作提示和每个选项都必须翻译。",
+        "角色规则：只有当输入明确是『角色名单独一行 + 对话正文』时，才把第一行作为说话人。菜单选项中出现角色名不代表该角色正在说话。",
+    ]
 
     if gc:
         gloss = gc.get("glossary", {})
@@ -57,8 +63,9 @@ def _build_system_prompt(gc: dict[str, Any] | None) -> str:
             rules = "\n".join(f"  {k}：{v}" for k, v in tones.items())
             parts.append(f"角色语气（识别到说话人时应用）：\n{rules}")
             parts.append(
-                "格式要求：若识别到说话人，第一行只输出角色名（如「成步堂」），"
-                "第二行起输出译文；若无法识别说话人，直接输出译文。"
+                "格式要求：仅当输入明确为说话人姓名单独占据第一行、后续为其对话正文时，"
+                "第一行输出角色名，第二行起输出译文。菜单、选项列表或无法确认说话人时，"
+                "逐行翻译全部内容，不要猜测说话人。"
             )
 
     return "\n\n".join(parts)
@@ -100,6 +107,37 @@ def translate(ocr_text: str, game_config: dict[str, Any] | None = None) -> str:
     data = _api_call(url, payload, key)
     choice = data["choices"][0]
     translated = (choice.get("message", {}).get("content", "") or "").strip()
+    source_lines = [line for line in ocr_text.splitlines() if line.strip()]
+    translated_lines = [line for line in translated.splitlines() if line.strip()]
+    if len(source_lines) > 1 and len(translated_lines) < len(source_lines):
+        print(
+            f"[MT] INCOMPLETE ({len(translated_lines)}/{len(source_lines)} lines), retrying",
+            flush=True,
+        )
+        retry_payload = dict(payload)
+        retry_payload["messages"] = [
+            payload["messages"][0],
+            payload["messages"][1],
+            {"role": "assistant", "content": translated},
+            {
+                "role": "user",
+                "content": (
+                    f"上次译文遗漏了内容。原文共有 {len(source_lines)} 个非空行，"
+                    f"请重新翻译全部内容，严格输出 {len(source_lines)} 个非空行，"
+                    "与原文逐行对应、顺序一致，不要省略菜单标题或任何选项。"
+                ),
+            },
+        ]
+        retry_data = _api_call(url, retry_payload, key)
+        retry_choice = retry_data["choices"][0]
+        retry_text = (
+            retry_choice.get("message", {}).get("content", "") or ""
+        ).strip()
+        retry_lines = [line for line in retry_text.splitlines() if line.strip()]
+        if len(retry_lines) >= len(translated_lines):
+            data = retry_data
+            choice = retry_choice
+            translated = retry_text
     if not translated:
         finish = choice.get("finish_reason", "?")
         print(f"[MT] EMPTY (finish_reason={finish}): {json.dumps(data, ensure_ascii=False)[:300]}", flush=True)
