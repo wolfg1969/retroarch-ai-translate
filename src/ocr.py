@@ -8,7 +8,10 @@ from urllib.request import Request, urlopen
 
 from . import config
 
-_BASE_OCR_INSTRUCTION = "请识别这张GBA游戏截图中的所有日文文字，只输出文字，不要解释。"
+_BASE_OCR_INSTRUCTION = (
+    "请识别这张GBA游戏截图中的所有日文文字，只输出文字，不要解释。"
+    "\n注意：GBA像素字体中相似假名易混淆（シ/ツ/ジ、ソ/ン、ゲ/ガ、バ/パ），请根据上下文和常见人名拼写判断正确读音。"
+)
 _OCR_HINT_FIELDS = (
     ("ui_style", "界面风格"),
     ("dialogue_style", "对话框样式"),
