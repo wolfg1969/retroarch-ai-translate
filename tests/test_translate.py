@@ -11,6 +11,7 @@ class TranslationPromptTests(unittest.TestCase):
         self.assertIn("保留相同行数", prompt)
         self.assertIn("菜单标题", prompt)
         self.assertIn("菜单选项中出现角色名不代表该角色正在说话", prompt)
+        self.assertIn("绝不能用已知角色名替换不认识的说话人", prompt)
 
     @patch("src.translate._api_call")
     def test_incomplete_multiline_translation_retries_with_line_count(self, api_call):
