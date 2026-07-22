@@ -78,6 +78,9 @@ export default function LogViewer() {
                 Auto-scroll paused (scroll down to resume)
               </div>
             )}
+            <div style={{ marginTop: "4px", fontSize: "10px", color: "#666", textAlign: "center" }}>
+              完整历史、筛选与下载：<a style={{ color: "#888" }} href="/settings" target="_blank" rel="noopener noreferrer">浏览器 Web Settings</a>
+            </div>
           </div>
         </PanelSectionRow>
       )}

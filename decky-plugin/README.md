@@ -8,7 +8,7 @@ Deck Quick Access Menu.
 - **Start/Stop** the translation HTTP server from QAM
 - **Switch game configs** (Phoenix Wright, Fire Emblem, Zelda, etc.)
 - **Configure API keys** for Vision OCR and Machine Translation
-- **View live logs** from the translation pipeline
+- **View live logs** from the translation pipeline (QAM: 50-line quick preview; full history/filter/copy/download at `http://<deck-ip>:<port>/settings`)
 - **Auto-start** on plugin load (configurable)
 
 ## Requirements

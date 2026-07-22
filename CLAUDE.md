@@ -30,7 +30,7 @@ curl -sS -X POST "http://localhost:4404/?output=text" \
 PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -v
 ```
 
-A small standard-library `unittest` regression suite covers OCR hints, game config parsing/fingerprints, cache isolation, and HTTP config propagation. No linter or type checker is configured.
+A small standard-library `unittest` regression suite covers OCR hints, game config parsing/fingerprints, cache isolation, HTTP config propagation, log buffer core/snapshot/redaction, and HTML escaping. No linter or type checker is configured.
 
 ## Architecture
 
@@ -59,7 +59,8 @@ PNG base64 → LRU cache check → Vision LLM OCR → MT translate → JSON resp
 | `src/translate.py` | MT (paid model or free Hunyuan-MT-7B fallback) |
 | `src/overlay.py` | Pillow-based text overlay with speaker detection |
 | `src/cache.py` | LRU cache keyed on downsampled screenshot crops |
-| `src/server_manager.py` | `ThreadingHTTPServer` in a daemon thread with log ring buffer |
+| `src/server_manager.py` | `ThreadingHTTPServer` in a daemon thread, delegates log capture to `log_buffer` |
+| `src/log_buffer.py` | Thread-safe bounded log buffer (1000 lines), API key redaction, stdout/stderr tee, `snapshot_logs()` and `get_recent_logs()` |
 | `decky-plugin/main.py` | Decky backend: RPC methods, env bootstrap, server lifecycle |
 | `decky-plugin/src/` | Decky frontend: StatusPanel, GameSelector, ApiKeySettings, LogViewer |
 | `templates/game_config.yaml` | Built-in game configs (glossary, phrases, tones) |

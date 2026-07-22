@@ -1,6 +1,7 @@
 """HTTP server — RetroArch AI Service protocol handler + web UI."""
 
 import base64
+import html
 import json
 import os
 import sys
@@ -25,8 +26,14 @@ def parse_output_modes(raw_output: str | None) -> set[str]:
     return modes or {"text"}
 
 
-def json_response(handler: BaseHTTPRequestHandler, data: dict[str, Any]) -> None:
-    print(f"[Response] {json.dumps(data, ensure_ascii=False)}", flush=True)
+def json_response(
+    handler: BaseHTTPRequestHandler,
+    data: dict[str, Any],
+    *,
+    log_payload: bool = True,
+) -> None:
+    if log_payload:
+        print(f"[Response] {json.dumps(data, ensure_ascii=False)}", flush=True)
     body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     handler.send_response(200)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
@@ -83,31 +90,53 @@ def _save_service_settings(data: dict[str, Any]) -> None:
 
 
 def _settings_ui(saved: bool = False) -> str:
-    s = _load_service_settings()
-    msg = '<p style="color:#4caf50;text-align:center">✅ 设置已保存，服务已自动应用</p>' if saved else ""
+    settings = _load_service_settings()
+    msg = (
+        '<p class="saved">✅ 设置已保存，服务已自动应用</p>'
+        if saved else ""
+    )
 
     def row(label: str, key: str, pw: bool = False) -> str:
-        val = s.get(key, "")
-        t = "password" if pw else "text"
-        return f"""<label style="display:block;margin-top:0.8em;font-weight:600">{label}</label>
-        <input type="{t}" name="{key}" value="{val.replace(chr(34), '&quot;')}" style="width:100%;padding:0.5em;font-size:1em;box-sizing:border-box">"""
+        configured = bool(settings.get(key))
+        input_type = "password" if pw else "text"
+        value = "" if pw else html.escape(str(settings.get(key, "")), quote=True)
+        placeholder = "已配置，留空保持不变" if pw and configured else ""
+        return f"""<label>{html.escape(label, quote=True)}</label>
+        <input type="{input_type}" name="{html.escape(key, quote=True)}"
+          value="{value}" placeholder="{html.escape(placeholder, quote=True)}">"""
 
     return f"""<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>API Settings — RetroArch AI Translate</title>
+<title>Settings — RetroArch AI Translate</title>
 <style>
-  body {{ font-family: system-ui, sans-serif; max-width: 520px; margin: 2em auto; padding: 0 1em; }}
-  h1 {{ font-size: 1.3em; }}
-  button {{ font-size: 1.1em; padding: 0.6em; width: 100%; margin-top: 1.2em; background: #4caf50; color: #fff; border: none; border-radius: 6px; cursor: pointer; }}
-  a {{ color: #888; }}
+  :root {{ color-scheme: light dark; }}
+  body {{ font-family: system-ui, sans-serif; max-width: 880px; margin: 2em auto; padding: 0 1em; }}
+  h1 {{ font-size: 1.35em; }}
+  h2 {{ margin: 1.8em 0 0.5em; font-size: 1.15em; }}
+  label {{ display:block; margin-top:0.8em; font-weight:600; }}
+  input {{ width:100%; padding:0.55em; font-size:1em; box-sizing:border-box; }}
+  button {{ padding:0.55em 0.8em; border:0; border-radius:6px; cursor:pointer; }}
+  .primary {{ width:100%; margin-top:1.2em; font-size:1.05em; background:#388e3c; color:#fff; }}
+  .saved {{ color:#4caf50; text-align:center; }}
+  .muted {{ color:#888; font-size:0.85em; }}
+  .log-toolbar {{ display:flex; flex-wrap:wrap; gap:0.5em; align-items:center; margin:0.7em 0; }}
+  .log-toolbar button {{ background:#555; color:#fff; }}
+  .log-filter {{ flex:1 1 220px; min-width:0; }}
+  #log-view {{ height:420px; overflow:auto; background:#111; color:#ddd; padding:10px;
+    font:12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space:pre-wrap;
+    word-break:break-word; border-radius:6px; border:1px solid #444; }}
+  #log-status {{ min-height:1.3em; }}
+  .footer {{ text-align:center; margin:1.5em 0; }}
+  a {{ color:#888; }}
+  @media (max-width:600px) {{ body {{ margin-top:1em; }} #log-view {{ height:55vh; }} }}
 </style>
 </head>
 <body>
-<h1>🔑 API 设置</h1>
-<p style="color:#888;font-size:0.85em">在电脑或手机上打开此页面，粘贴 API Key 更方便</p>
+<h1>⚙️ API 设置</h1>
+<p class="muted">密码字段留空会保留现有密钥。日志可能包含游戏文字与客户端 IP。</p>
 {msg}
 <form method="post" action="/settings">
   {row("Vision API Key", "vision_api_key", pw=True)}
@@ -116,12 +145,111 @@ def _settings_ui(saved: bool = False) -> str:
   {row("Translate API Key（可选）", "translate_api_key", pw=True)}
   {row("Translate API URL", "translate_base_url")}
   {row("Translate Model", "translate_model")}
-  <button type="submit">💾 保存设置</button>
+  <button class="primary" type="submit">💾 保存设置</button>
 </form>
-<p style="text-align:center;margin-top:1.5em"><a href="/">← 返回首页</a></p>
-	<p style="text-align:center;margin-top:1em">
-	  <a href="/settings" style="color:#888">⚙️ API 设置</a>
-	</p>
+
+<h2>📋 服务日志</h2>
+<p class="muted">最多保留最近 1000 行；页面默认实时增量刷新。</p>
+<div class="log-toolbar">
+  <button id="log-pause" type="button">暂停</button>
+  <button id="log-refresh" type="button">立即刷新</button>
+  <button id="log-scroll" type="button">自动滚动：开</button>
+  <button id="log-copy" type="button">复制</button>
+  <button id="log-download" type="button">下载</button>
+  <input id="log-filter" class="log-filter" type="search" placeholder="筛选日志…">
+</div>
+<div id="log-status" class="muted">正在连接日志…</div>
+<div id="log-view" role="log" aria-live="polite"></div>
+
+<p class="footer"><a href="/">← 返回首页</a></p>
+<script>
+(() => {{
+  const capacity = 1000;
+  const view = document.getElementById("log-view");
+  const status = document.getElementById("log-status");
+  const filter = document.getElementById("log-filter");
+  const pauseButton = document.getElementById("log-pause");
+  const scrollButton = document.getElementById("log-scroll");
+  let records = [];
+  let cursor = null;
+  let paused = false;
+  let autoScroll = true;
+  let loading = false;
+
+  function visibleText() {{
+    const term = filter.value.toLowerCase();
+    return records
+      .filter(item => !term || item.text.toLowerCase().includes(term))
+      .map(item => item.text)
+      .join("\\n");
+  }}
+
+  function render(message = "") {{
+    const text = visibleText();
+    view.textContent = text;
+    if (autoScroll) view.scrollTop = view.scrollHeight;
+    const shown = text ? text.split("\\n").length : 0;
+    status.textContent = message || `${{shown}} 行显示 / ${{records.length}} 行保留${{paused ? " · 已暂停" : ""}}`;
+  }}
+
+  async function loadLogs(reset = false) {{
+    if (loading || (paused && !reset) || document.hidden) return;
+    loading = true;
+    try {{
+      const query = reset || cursor === null
+        ? "?lines=500"
+        : `?lines=1000&after=${{encodeURIComponent(cursor)}}`;
+      const response = await fetch("/logs" + query, {{ cache: "no-store" }});
+      const data = await response.json();
+      if (reset || cursor === null || data.truncated) records = [];
+      if (Array.isArray(data.logs)) records.push(...data.logs);
+      records = records.slice(-capacity);
+      cursor = Number.isInteger(data.cursor) ? data.cursor : cursor;
+      render(data.error ? "日志读取失败：" + data.error : (data.truncated ? "较早日志已淘汰，已重新同步" : ""));
+    }} catch (error) {{
+      render("日志连接失败：" + String(error));
+    }} finally {{
+      loading = false;
+    }}
+  }}
+
+  pauseButton.addEventListener("click", () => {{
+    paused = !paused;
+    pauseButton.textContent = paused ? "继续" : "暂停";
+    render();
+    if (!paused) loadLogs(false);
+  }});
+  document.getElementById("log-refresh").addEventListener("click", () => loadLogs(true));
+  scrollButton.addEventListener("click", () => {{
+    autoScroll = !autoScroll;
+    scrollButton.textContent = "自动滚动：" + (autoScroll ? "开" : "关");
+    render();
+  }});
+  view.addEventListener("scroll", () => {{
+    const atBottom = view.scrollHeight - view.scrollTop - view.clientHeight < 30;
+    if (!atBottom && autoScroll) {{
+      autoScroll = false;
+      scrollButton.textContent = "自动滚动：关";
+    }}
+  }});
+  filter.addEventListener("input", () => render());
+  document.getElementById("log-copy").addEventListener("click", async () => {{
+    try {{ await navigator.clipboard.writeText(visibleText()); render("日志已复制"); }}
+    catch (error) {{ render("复制失败：" + String(error)); }}
+  }});
+  document.getElementById("log-download").addEventListener("click", () => {{
+    const url = URL.createObjectURL(new Blob([visibleText() + "\\n"], {{ type:"text/plain;charset=utf-8" }}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "retroarch-ai-translate.log";
+    link.click();
+    URL.revokeObjectURL(url);
+  }});
+  document.addEventListener("visibilitychange", () => {{ if (!document.hidden) loadLogs(false); }});
+  loadLogs(true);
+  setInterval(() => loadLogs(false), 2000);
+}})();
+</script>
 </body>
 </html>"""
 
@@ -130,12 +258,19 @@ def _web_ui(current_id: str, client_ip: str = "") -> str:
     configs = game_config.load_all()
     options = []
     for gc in configs:
-        gid = gc.get("game_id", "")
-        name = gc.get("display_name", gid)
+        gid = str(gc.get("game_id", ""))
+        name = str(gc.get("display_name", gid))
         sel = " selected" if gid == current_id else ""
-        options.append(f'<option value="{gid}"{sel}>{name} ({gid})</option>')
+        escaped_gid = html.escape(gid, quote=True)
+        escaped_name = html.escape(name, quote=True)
+        options.append(
+            f'<option value="{escaped_gid}"{sel}>{escaped_name} ({escaped_gid})</option>'
+        )
 
-    ip_info = f"设备 IP：{client_ip}" if client_ip else ""
+    ip_info = f"设备 IP：{html.escape(client_ip, quote=True)}" if client_ip else ""
+    escaped_current = html.escape(
+        current_id or "未设置（自动检测或使用术语表）", quote=True
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="zh">
@@ -156,7 +291,7 @@ def _web_ui(current_id: str, client_ip: str = "") -> str:
 <h1>RetroArch AI Translate</h1>
 <p class="ip-info">{ip_info}</p>
 <div class="status {'active' if current_id else 'none'}">
-  当前游戏：<strong>{current_id or '未设置（自动检测或使用术语表）'}</strong>
+  当前游戏：<strong>{escaped_current}</strong>
 </div>
 <form method="post" action="/set-game">
   <select name="game_id">
@@ -218,6 +353,38 @@ class TranslationHandler(BaseHTTPRequestHandler):
             html_response(self, _web_ui(current_id, client_ip))
         elif parsed.path == "/settings":
             html_response(self, _settings_ui())
+        elif parsed.path == "/logs":
+            try:
+                from .log_buffer import LOG_CAPACITY, snapshot_logs
+
+                params = parse_qs(parsed.query)
+                try:
+                    lines = int(params.get("lines", ["500"])[0])
+                except (TypeError, ValueError):
+                    lines = 500
+                lines = max(1, min(lines, LOG_CAPACITY))
+                after_raw = params.get("after", [None])[0]
+                try:
+                    after = int(after_raw) if after_raw is not None else None
+                except (TypeError, ValueError):
+                    after = None
+                json_response(
+                    self,
+                    snapshot_logs(lines=lines, after=after),
+                    log_payload=False,
+                )
+            except Exception:
+                json_response(
+                    self,
+                    {
+                        "logs": [],
+                        "cursor": 0,
+                        "truncated": False,
+                        "capacity": 1000,
+                        "error": "日志暂时不可用",
+                    },
+                    log_payload=False,
+                )
         else:
             mt_model = config.TRANSLATE_MODEL if config.TRANSLATE_API_KEY else config.TRANSLATE_MT_FREE_MODEL
             json_response(self, {
@@ -370,6 +537,8 @@ class TranslationHandler(BaseHTTPRequestHandler):
             json_response(self, resp)
 
     def log_message(self, fmt: str, *args: Any) -> None:
+        if urlparse(self.path).path == "/logs":
+            return
         sys.stderr.write(
             "%s - - [%s] %s\n"
             % (self.client_address[0], self.log_date_time_string(), fmt % args)
