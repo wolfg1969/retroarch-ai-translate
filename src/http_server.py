@@ -234,8 +234,26 @@ def _settings_ui(saved: bool = False) -> str:
   }});
   filter.addEventListener("input", () => render());
   document.getElementById("log-copy").addEventListener("click", async () => {{
-    try {{ await navigator.clipboard.writeText(visibleText()); render("日志已复制"); }}
-    catch (error) {{ render("复制失败：" + String(error)); }}
+    try {{
+      const text = visibleText();
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {{
+        await navigator.clipboard.writeText(text);
+      }} else {{
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) throw new Error("浏览器不支持自动复制");
+      }}
+      render("日志已复制");
+    }} catch (error) {{
+      render("复制失败：" + String(error));
+    }}
   }});
   document.getElementById("log-download").addEventListener("click", () => {{
     const url = URL.createObjectURL(new Blob([visibleText() + "\\n"], {{ type:"text/plain;charset=utf-8" }}));

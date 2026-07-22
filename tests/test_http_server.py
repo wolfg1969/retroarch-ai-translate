@@ -222,6 +222,14 @@ class HttpHtmlEscapingTests(unittest.TestCase):
             self.assertNotIn('<script>', html)
             self.assertIn('&lt;', html)
 
+    def test_settings_copy_has_insecure_context_fallback(self):
+        import src.http_server
+        with patch.object(src.http_server, '_load_service_settings', return_value={}):
+            page = src.http_server._settings_ui()
+        self.assertIn("navigator.clipboard &&", page)
+        self.assertIn('document.execCommand("copy")', page)
+        self.assertIn('document.createElement("textarea")', page)
+
 
 if __name__ == "__main__":
     unittest.main()
